@@ -71,3 +71,63 @@ def radial_ps_loss(pred: torch.Tensor, target: torch.Tensor, includ_var: bool = 
         return (rp_pred - rp_tgt).abs().mean()
     return ((rp_pred - rp_tgt) ** 2).mean()
 
+########### 2d #############
+def power_spectrum_2d(x: torch.Tensor, eps: float = 1e-8, log: bool = True) -> torch.Tensor:
+    """
+    平移不变的 2D 功率谱 |FFT|^2（保留方向信息，不做径向平均）
+    x: [B,1,H,W] or [B,H,W]
+    return: [B,H,W]  (fftshift 后，低频在中心)
+    """
+    if x.dim() == 4:
+        x = x[:, 0]  # [B,H,W]
+    elif x.dim() != 3:
+        raise ValueError("x must be [B,1,H,W] or [B,H,W]")
+
+    # 去 DC，避免均值差异主导
+    x = x - x.mean(dim=(-2, -1), keepdim=True)
+
+    X = torch.fft.fft2(x)                      # complex [B,H,W]
+    ps = (X.real ** 2 + X.imag ** 2)           # |X|^2  [B,H,W]
+    ps = torch.fft.fftshift(ps, dim=(-2, -1))  # center low-freq
+
+    # 归一化：只比较形状，不比较整体能量尺度（更稳）
+    ps = ps / (ps.sum(dim=(-2, -1), keepdim=True).clamp_min(eps))
+
+    if log:
+        ps = torch.log(ps + eps)
+    return ps
+
+
+def ps2d_loss_pairwise(pred: torch.Tensor, target: torch.Tensor, l1: bool = False) -> torch.Tensor:
+    """
+    逐样本配对的 2D 功率谱 loss（pred_i vs target_i）
+    pred/target: [B,1,H,W] or [B,H,W]
+    """
+    ps_pred = power_spectrum_2d(pred, log=True)
+    ps_tgt  = power_spectrum_2d(target, log=True)
+    if l1:
+        return (ps_pred - ps_tgt).abs().mean()
+    return ((ps_pred - ps_tgt) ** 2).mean()
+
+
+def ps2d_loss_distribution(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    """
+    分布匹配版本（推荐你现在的目标用这个）：
+    不做 pred_i 对 target_i 的随机配对，而是匹配 batch 的均值/方差。
+
+    pred/target: [B,1,H,W] or [B,H,W]
+    return scalar loss
+    """
+    ps_pred = power_spectrum_2d(pred, log=True)   # [B,H,W]
+    ps_tgt  = power_spectrum_2d(target, log=True) # [B,H,W]
+
+    # 按 batch 维度做统计匹配
+    mu_pred  = ps_pred.mean(dim=0)               # [H,W]
+    mu_tgt   = ps_tgt.mean(dim=0)
+    var_pred = ps_pred.var(dim=0, unbiased=False)
+    var_tgt  = ps_tgt.var(dim=0, unbiased=False)
+
+    loss_mu  = (mu_pred - mu_tgt).pow(2).mean()
+    loss_var = (var_pred - var_tgt).pow(2).mean()
+    return loss_mu + 0.5 * loss_var
+
