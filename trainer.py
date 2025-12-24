@@ -47,7 +47,7 @@ def main():
         print(f"Target patterns generated and saved to {target_pt_path}")
 
     # --- 2) Learnable params + optimizer
-    opt = torch.optim.Adam(gen.parameters(), lr=5e-3)
+    opt = torch.optim.SGD(gen.parameters(), lr=5e-3, momentum=0.0)
 
     # --- 3) Training hyperparams
     train_steps = 2000
@@ -89,7 +89,7 @@ def main():
             loss = torch.nn.functional.mse_loss(ps_pred, ps_tgt) + alpha * ((v_pred - v_tgt) ** 2).mean()
 
             #### debug ####
-            if it != 0:
+            if it != 0 and it % 25 == 0:
                 pred_std = v_pred.std(dim=(-2, -1))
                 print("Prediction stats: ", pred_std.min().item(), pred_std.median().item(), pred_std.max().item())
                 print("Power spectrum means per batch: ", X_mean, ps_mean)
@@ -113,7 +113,7 @@ def main():
             opt.zero_grad(set_to_none=True)
             loss.backward()
     
-            if it != 0:
+            if it != 0 and it % 25 == 0:
                 print("After backprop, before clip:", "grad log_Du:", gen.log_Du.grad.abs().mean().item(),
                       "grad log_Dv:", gen.log_Dv.grad.abs().mean().item(),
                       "grad raw_F :", gen.raw_F.grad.abs().mean().item(),
@@ -127,7 +127,7 @@ def main():
     
             if grad_clip is not None:
                 total_norm = torch.nn.utils.clip_grad_norm_(gen.parameters(), grad_clip)
-                if it != 0:
+                if it != 0 and it % 25 == 0:
                     print("total_norm(before clip):", total_norm.item())
                     print("raw_k grad after clip, before optimization:", gen.raw_k.grad.abs().mean().item(), gen.raw_k.grad.abs().max().item())
 
