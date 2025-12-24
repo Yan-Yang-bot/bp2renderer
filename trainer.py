@@ -58,6 +58,8 @@ def main():
     grad_clip = 1.5
     tol = 1e-3
     max_steps = 40000
+    tau = 1e-5
+    lmbd = 1e-5
 
     # Optional: pick targets as batch too
     print("Start training...")
@@ -86,7 +88,10 @@ def main():
             X_mean, ps_mean, ps_pred = power_spectrum_2d(v_pred, log=True)   # [B,H,W]
             _, _, ps_tgt  = power_spectrum_2d(v_tgt, log=True) # [B,H,W]
 
-            loss = torch.nn.functional.mse_loss(ps_pred, ps_tgt) + alpha * ((v_pred - v_tgt) ** 2).mean()
+            loss = torch.nn.functional.mse_loss(ps_pred, ps_tgt)
+            loss += alpha * ((v_pred - v_tgt) ** 2).mean()
+            reg = torch.relu(tau - v_pred.std(dim=(-2, -1))).mean()
+            loss += lmbd * reg
 
             #### debug ####
             if it != 0 and it % 25 == 0:
