@@ -12,8 +12,8 @@ def print_usage_and_exit():
         "Please specify the task you want to perform:\n"
         "1. generate targets\n"
         "2. test training forward (starting from noisy random parameters)\n"
-        "\n"
-        "Type: python generate_targets.py <number of your option>"
+        "3. load existing targets and show the first 4 of them\n"
+        "Type: python generate_targets.py <number of your option> <optional: path to existing targets>"
     )
     sys.exit(1)
 
@@ -27,10 +27,11 @@ try:
 except ValueError:
     print_usage_and_exit()
 
-if task_id not in (1, 2):
+if task_id not in (1, 2, 3):
     print_usage_and_exit()
 
-task = 'test training forward' if task_id == 2 else ('generate targets' if task_id == 1 else '')
+if task_id == 3: target_pt_path = sys.argv[2]
+task = 'test training forward' if task_id == 2 else ('generate targets' if task_id == 1 else ('show stored targets' if task_id ==3 else ''))
 print(f"Current task: {task}")
 
 
@@ -39,17 +40,20 @@ if __name__ == "__main__":
         device = torch.device("cuda")
     else:
         device = torch.device("cpu")
-    params = GSParams(Du=0.1636, Dv=0.1555, F=0.0422, k=0.0589)
-    #params = GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065)
+    #params = GSParams(Du=0.1365, Dv=0.10145, F=0.0392, k=0.0555)
+    #params = GSParams(Du=0.1269, Dv=0.1269, F=0.0500, k=0.0500)
+    params = GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065)
     print('parameters generated.')
 
     print('Generating...')
     u, v = init_state_batch(B=4, H=128, W=128, device=device)
     if task == 'generate targets':
-        v_batch = RDGenerator.generate_gray_scott_target_batch(u, v, params=params, device=device, tol=1e-4, max_steps=50000)
+        v_batch = RDGenerator.generate_gray_scott_target_batch(u, v, params=params, device=device, tol=1e-8, max_steps=50000)
     elif task == 'test training forward':
         gen = RDGenerator()
         v_batch = gen.simulate_to_steady_trunc_bptt(u, v, batch_sim=4, device=device)[1]
+    elif task == 'show stored targets':
+        v_batch = torch.load(target_pt_path, map_location=device)
 
     fig, axes = plt.subplots(2, 2, figsize=(8, 8))
     v_batch_np = v_batch.detach().cpu().numpy().squeeze(1)
@@ -61,4 +65,6 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.show()
     plt.close(fig)
+
+    print("Range of pixel values:", v_batch.min().item(), v_batch.max().item(), v_batch.median().item(), v_batch.std(dim=(-1,-2)).mean().item())
 

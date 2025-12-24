@@ -151,6 +151,15 @@ class RDGenerator(nn.Module):
         v = v.detach()
 
         p = self.params_tensor()  # same underlying Parameters, now used in grad mode
+
+        #### debug ####
+        #print("Phase2 u.requires_grad:", u.requires_grad, "v.requires_grad:", v.requires_grad)
+        #print("Phase2 p types:", type(p.Du), type(p.F))
+        #if isinstance(p.Du, torch.Tensor):
+        #    print("Phase2 p.Du.requires_grad:", p.Du.requires_grad)
+        #if isinstance(p.F, torch.Tensor):
+        #    print("Phase2 p.F.requires_grad:", p.F.requires_grad)
+        #### end ####
         for _ in range(K):
             u, v = gray_scott_step(u, v, p, dt)
 

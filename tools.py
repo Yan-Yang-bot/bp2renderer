@@ -1,14 +1,14 @@
 # tools.py
 import torch
 from dataclasses import dataclass
-
+from typing import Union
 
 @dataclass
 class GSParams:
-    Du: float = 0.16
-    Dv: float = 0.08
-    F:  float = 0.035
-    k:  float = 0.065
+    Du: Union[torch.Tensor, float] = 0.16
+    Dv: Union[torch.Tensor, float] = 0.08
+    F:  Union[torch.Tensor, float] = 0.035
+    k:  Union[torch.Tensor, float] = 0.065
 
 
 def laplacian_periodic(x: torch.Tensor) -> torch.Tensor:

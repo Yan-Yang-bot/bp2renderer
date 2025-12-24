@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from tools import GSParams, init_state_batch
-from radial_power_spectrum_loss import radial_ps_loss, ps2d_loss_distribution
+from radial_power_spectrum_loss import power_spectrum_2d
 from rd_generator import RDGenerator
 
 
@@ -52,18 +52,17 @@ def main():
     # --- 3) Training hyperparams
     train_steps = 2000
     batch_sim = 8          # how many sims per iter
-    unroll_K = 3000         # truncated backprop steps
+    unroll_K = 1000         # truncated backprop steps
     dt = 1.0
     alpha = 0.0           # pixel L2 weight
     grad_clip = 1.5
-    tol = 2e-4
+    tol = 1e-3
     max_steps = 40000
 
     # Optional: pick targets as batch too
     print("Start training...")
     for it in trange(train_steps, desc="Training iters", leave=True):
         try:
-            opt.zero_grad(set_to_none=True)
     
             # sample a batch of targets (distribution matching)
             idx = torch.randint(0, B_targets, (batch_sim,), device=device)
@@ -83,12 +82,39 @@ def main():
                 device=device,
                 return_steps_taken=True,
             )
-    
-            loss = ps2d_loss_distribution(v_pred, v_tgt) + alpha * ((v_pred - v_tgt) ** 2).mean()
+
+            X_mean, ps_mean, ps_pred = power_spectrum_2d(v_pred, log=True)   # [B,H,W]
+            _, _, ps_tgt  = power_spectrum_2d(v_tgt, log=True) # [B,H,W]
+
+            loss = torch.nn.functional.mse_loss(ps_pred, ps_tgt) + alpha * ((v_pred - v_tgt) ** 2).mean()
+
+            #### debug ####
+            if it != 0:
+                pred_std = v_pred.std(dim=(-2, -1))
+                print("Prediction stats: ", pred_std.min().item(), pred_std.median().item(), pred_std.max().item())
+                print("Power spectrum means per batch: ", X_mean, ps_mean)
+                g_v = torch.autograd.grad(loss, v_pred, retain_graph=True, allow_unused=True)[0]
+                print("dL/dv_pred:", "None" if g_v is None else (g_v.abs().mean().item(), g_v.abs().max().item()))
+                loss2 = ((v_pred - v_tgt) ** 2).mean()
+                g2 = torch.autograd.grad(loss2, gen.raw_F, retain_graph=True, allow_unused=True)[0]
+                print("with L2, grad raw_F:", "None" if g2 is None else (g2.abs().mean().item(), g2.abs().max().item()))
+                print("Before backprop (last grads left)", "grad log_Du:", gen.log_Du.grad.abs().mean().item(),
+                      "grad log_Dv:", gen.log_Dv.grad.abs().mean().item(),
+                      "grad raw_F :", gen.raw_F.grad.abs().mean().item(),
+                      "grad raw_k :", gen.raw_k.grad.abs().mean().item())
+                with torch.no_grad():
+                    p = gen.params_tensor()
+                    print(
+                        f"it={it+1:4d} loss={loss.item():.6f} "
+                        f"Du={p.Du.item():.4f} Dv={p.Dv.item():.4f} F={p.F.item():.4f} k={p.k.item():.4f}"
+                    )
+            #### end ####
+
+            opt.zero_grad(set_to_none=True)
             loss.backward()
     
-            if it % 25 == 0:
-                print("grad log_Du:", gen.log_Du.grad.abs().mean().item(),
+            if it != 0:
+                print("After backprop, before clip:", "grad log_Du:", gen.log_Du.grad.abs().mean().item(),
                       "grad log_Dv:", gen.log_Dv.grad.abs().mean().item(),
                       "grad raw_F :", gen.raw_F.grad.abs().mean().item(),
                       "grad raw_k :", gen.raw_k.grad.abs().mean().item())
@@ -100,10 +126,13 @@ def main():
                     )
     
             if grad_clip is not None:
-                torch.nn.utils.clip_grad_norm_(gen.parameters(), grad_clip)
+                total_norm = torch.nn.utils.clip_grad_norm_(gen.parameters(), grad_clip)
+                if it != 0:
+                    print("total_norm(before clip):", total_norm.item())
+                    print("raw_k grad after clip, before optimization:", gen.raw_k.grad.abs().mean().item(), gen.raw_k.grad.abs().max().item())
 
         except KeyboardInterrupt:
-            print(f"Step {it} aborted. Showing params at step {it-1}:")
+            done = False
             break
         
         try:
@@ -112,11 +141,11 @@ def main():
             print("Ctrl+C ignored, continuing...")
 
     else:
-        print("Done.")
+        done = True
     with torch.no_grad():
         p = gen.params_tensor()
-        print("Learned params (tensor):",
-              "Du=", float(p.Du.cpu()),
+        print("Done.\nLearned params (tensor):" if done else f"Step {it} aborted.\nShowing params at step {it-1}:")
+        print("Du=", float(p.Du.cpu()),
               "Dv=", float(p.Dv.cpu()),
               "F=", float(p.F.cpu()),
               "k=", float(p.k.cpu()))
