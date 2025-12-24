@@ -47,7 +47,7 @@ def main():
         print(f"Target patterns generated and saved to {target_pt_path}")
 
     # --- 2) Learnable params + optimizer
-    opt = torch.optim.SGD(gen.parameters(), lr=5e-3, momentum=0.0)
+    opt = torch.optim.SGD(gen.parameters(), lr=5e-4, momentum=0.0, weight_decay=5e-4)
 
     # --- 3) Training hyperparams
     train_steps = 2000
@@ -55,9 +55,10 @@ def main():
     unroll_K = 1000         # truncated backprop steps
     dt = 1.0
     alpha = 0.0           # pixel L2 weight
-    grad_clip = 1.5
+    grad_clip = None #1.5
     tol = 1e-3
     max_steps = 40000
+    lam_E = 1e-3
 
     # Optional: pick targets as batch too
     print("Start training...")
@@ -83,16 +84,26 @@ def main():
                 return_steps_taken=True,
             )
 
-            X_mean, ps_mean, ps_pred = power_spectrum_2d(v_pred, log=True)   # [B,H,W]
-            _, _, ps_tgt  = power_spectrum_2d(v_tgt, log=True) # [B,H,W]
+            E, ps_mean, ps_pred = power_spectrum_2d(v_pred, log=True)   # [B,H,W]
+            X_mean = E.item()
+            _, _, ps_tgt = power_spectrum_2d(v_tgt, log=True) # [B,H,W]
 
-            loss = torch.nn.functional.mse_loss(ps_pred, ps_tgt) + alpha * ((v_pred - v_tgt) ** 2).mean()
+            loss = torch.nn.functional.mse_loss(ps_pred, ps_tgt)
+            loss += alpha * ((v_pred - v_tgt) ** 2).mean()
+            E_min = 5e-6
+            E_max = 7e1
+            loss_E = lam_E * (
+                torch.relu(E_min - E) +
+                torch.relu(E - E_max)
+            )
+            loss += lam_E * loss_E
+
 
             #### debug ####
             if it != 0 and it % 25 == 0:
                 pred_std = v_pred.std(dim=(-2, -1))
                 print("Prediction stats: ", pred_std.min().item(), pred_std.median().item(), pred_std.max().item())
-                print("Power spectrum means per batch: ", X_mean, ps_mean)
+                print("Power spectrum means per batch: ", X_mean, "normalized & log taken:", ps_mean)
                 g_v = torch.autograd.grad(loss, v_pred, retain_graph=True, allow_unused=True)[0]
                 print("dL/dv_pred:", "None" if g_v is None else (g_v.abs().mean().item(), g_v.abs().max().item()))
                 loss2 = ((v_pred - v_tgt) ** 2).mean()
