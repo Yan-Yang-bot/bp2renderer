@@ -45,8 +45,8 @@ class RDGenerator(nn.Module):
         disable_progress_bar: bool = False,
     ):
         """
-        公用 simulate 核心：按样本判断收敛 + freeze。
-        既可用于 target 生成（no_grad 环境），也可用于训练 warmup（no_grad 环境）。
+        shared simulattion core: each sample converges and freezes separately.
+        used in target generation (no grad) and training warmup (no grad).
 
         u,v: [B,1,H,W]
         p: GSParams (fields can be Tensor or float)
@@ -86,7 +86,7 @@ class RDGenerator(nn.Module):
         return u, v, converged, steps_taken
 
     # -----------------------------
-    # 1) 作为成员函数的 target 生成
+    # 1) Target Generation
     # -----------------------------
     @staticmethod
     @torch.no_grad()
@@ -117,7 +117,7 @@ class RDGenerator(nn.Module):
         return v  # [B,1,H,W]
 
     # ----------------------------------------
-    # 2) TBPTT：warmup 到稳态 + 最后 K 步带图
+    # 2) TBPTT：warmup until close to stable status + store gradient for the subsequent K steps.
     # ----------------------------------------
     def simulate_to_steady_trunc_bptt(
         self,

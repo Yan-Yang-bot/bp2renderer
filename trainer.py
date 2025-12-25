@@ -96,11 +96,11 @@ def main():
                 torch.relu(E_min - E) +
                 torch.relu(E - E_max)
             )
-            loss += lam_E * loss_E
+            loss_total = loss + lam_E * loss_E
 
 
             #### debug ####
-            if it != 0 and it % 25 == 0:
+            if it != 0:
                 pred_std = v_pred.std(dim=(-2, -1))
                 print("Prediction stats: ", pred_std.min().item(), pred_std.median().item(), pred_std.max().item())
                 print("Power spectrum means per batch: ", X_mean, "normalized & log taken:", ps_mean)
@@ -116,7 +116,7 @@ def main():
                 with torch.no_grad():
                     p = gen.params_tensor()
                     print(
-                        f"it={it+1:4d} loss={loss.item():.6f} "
+                        f"it={it+1:4d} loss={loss.item():.6f} loss_total={loss_total.item():.6f}"
                         f"Du={p.Du.item():.4f} Dv={p.Dv.item():.4f} F={p.F.item():.4f} k={p.k.item():.4f}"
                     )
             #### end ####
@@ -124,17 +124,11 @@ def main():
             opt.zero_grad(set_to_none=True)
             loss.backward()
     
-            if it != 0 and it % 25 == 0:
+            if it != 0:
                 print("After backprop, before clip:", "grad log_Du:", gen.log_Du.grad.abs().mean().item(),
                       "grad log_Dv:", gen.log_Dv.grad.abs().mean().item(),
                       "grad raw_F :", gen.raw_F.grad.abs().mean().item(),
                       "grad raw_k :", gen.raw_k.grad.abs().mean().item())
-                with torch.no_grad():
-                    p = gen.params_tensor()
-                    print(
-                        f"it={it+1:4d} loss={loss.item():.6f} "
-                        f"Du={p.Du.item():.4f} Dv={p.Dv.item():.4f} F={p.F.item():.4f} k={p.k.item():.4f}"
-                    )
     
             if grad_clip is not None:
                 total_norm = torch.nn.utils.clip_grad_norm_(gen.parameters(), grad_clip)
