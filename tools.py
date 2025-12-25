@@ -54,3 +54,8 @@ def gray_scott_step(u: torch.Tensor, v: torch.Tensor, p: GSParams, dt: float):
     v_next = v + dt * dv
     return u_next, v_next
 
+def debug_freq(iter: int, print_more: int = 0) -> bool:
+    p = iter != 0 and iter % 30 == 0 or \
+        iter > 125 and iter % 25 == 0 or \
+        iter > 200 and iter % 10 == 0 or iter > 300
+    return p or iter != 0 and iter % print_more == 0 if print_more else p

@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from tools import GSParams, init_state_batch
+from tools import GSParams, init_state_batch, debug_freq
 from radial_power_spectrum_loss import power_spectrum_2d
 from rd_generator import RDGenerator
 
@@ -47,7 +47,7 @@ def main():
         print(f"Target patterns generated and saved to {target_pt_path}")
 
     # --- 2) Learnable params + optimizer
-    opt = torch.optim.SGD(gen.parameters(), lr=5e-4, momentum=0.0, weight_decay=5e-4)
+    opt = torch.optim.SGD(gen.parameters(), lr=1e-2, momentum=0.0, weight_decay=5e-4)
 
     # --- 3) Training hyperparams
     train_steps = 2000
@@ -58,10 +58,10 @@ def main():
     grad_clip = None #1.5
     tol = 1e-3
     max_steps = 40000
-    lam_E = 1e-3
+    # lam_E = 3e-2
 
     # Optional: pick targets as batch too
-    print("Start training...")
+    print("\33[31mStart training...\33[0m")
     for it in trange(train_steps, desc="Training iters", leave=True):
         try:
     
@@ -85,56 +85,59 @@ def main():
             )
 
             E, ps_mean, ps_pred = power_spectrum_2d(v_pred, log=True)   # [B,H,W]
-            X_mean = E.item()
             _, _, ps_tgt = power_spectrum_2d(v_tgt, log=True) # [B,H,W]
 
             loss = torch.nn.functional.mse_loss(ps_pred, ps_tgt)
             loss += alpha * ((v_pred - v_tgt) ** 2).mean()
-            E_min = 5e-5
-            E_max = 7e0
-            loss_E = lam_E * (
-                torch.relu(E_min - E) +
-                torch.relu(E - E_max)
-            )
-            loss_total = loss + lam_E * loss_E
+            #loss_E = lam_E * (
+            #    torch.relu(E_min - E) +
+            #    torch.relu(E - E_max)
+            #)
+            #loss_total = loss + loss_E
 
 
             #### debug ####
-            if it != 0:
+            if debug_freq(it, print_more=4):
+
                 pred_std = v_pred.std(dim=(-2, -1))
-                print("Prediction stats: ", pred_std.min().item(), pred_std.median().item(), pred_std.max().item())
-                print("Power spectrum means per batch: ", X_mean, "normalized & log taken:", ps_mean)
+                print(f"\n\n\033[32mPrediction stats: {pred_std.min().item():.04e}, {pred_std.median().item():.04e}, {pred_std.max().item():.04e}")
+                print(f"Power spectrum: {E.item():.4e}, w/ log: {ps_mean:.4e}\033[0m\n")
+
                 g_v = torch.autograd.grad(loss, v_pred, retain_graph=True, allow_unused=True)[0]
-                print("dL/dv_pred:", "None" if g_v is None else (g_v.abs().mean().item(), g_v.abs().max().item()))
+                print("dL/dv_pred:", "None\n" if g_v is None else f"({g_v.abs().mean().item():.4e}, {g_v.abs().max().item():.4e})\n")
+
                 loss2 = ((v_pred - v_tgt) ** 2).mean()
                 g2 = torch.autograd.grad(loss2, gen.raw_F, retain_graph=True, allow_unused=True)[0]
-                print("with L2, grad raw_F:", "None" if g2 is None else (g2.abs().mean().item(), g2.abs().max().item()))
-                print("Before backprop (last grads left)", "grad log_Du:", gen.log_Du.grad.abs().mean().item(),
-                      "grad log_Dv:", gen.log_Dv.grad.abs().mean().item(),
-                      "grad raw_F :", gen.raw_F.grad.abs().mean().item(),
-                      "grad raw_k :", gen.raw_k.grad.abs().mean().item())
-                with torch.no_grad():
-                    p = gen.params_tensor()
-                    print(
-                        f"it={it+1:4d} loss={loss.item():.6f} loss_total={loss_total.item():.6f}",
-                        f"Du={p.Du.item():.4f} Dv={p.Dv.item():.4f} F={p.F.item():.4f} k={p.k.item():.4f}"
-                    )
+                print("with L2, grad raw_F:", "None\n" if g2 is None else f"({g2.abs().mean().item():.4e}, {g2.abs().max().item():.4e})\n")
+
+                print("\033[36mBefore backprop (last grads)\033[0m", f"grad log_Du: {gen.log_Du.grad.abs().mean().item():.4e}",
+                      f"grad log_Dv: {gen.log_Dv.grad.abs().mean().item():.4e}",
+                      f"grad raw_F : {gen.raw_F.grad.abs().mean().item():.4e}",
+                      f"grad raw_k : {gen.raw_k.grad.abs().mean().item():.4e}")
             #### end ####
 
             opt.zero_grad(set_to_none=True)
             loss.backward()
-    
-            if it != 0:
-                print("After backprop, before clip:", "grad log_Du:", gen.log_Du.grad.abs().mean().item(),
-                      "grad log_Dv:", gen.log_Dv.grad.abs().mean().item(),
-                      "grad raw_F :", gen.raw_F.grad.abs().mean().item(),
-                      "grad raw_k :", gen.raw_k.grad.abs().mean().item())
+
+            #### debug ####
+            if debug_freq(it, print_more=4):
+                print("\033[34mAfter backprop (before clip)\033[0m", f"grad log_Du: {gen.log_Du.grad.abs().mean().item():.04e}",
+                      f"grad log_Dv: {gen.log_Dv.grad.abs().mean().item():.4e}",
+                      f"grad raw_F : {gen.raw_F.grad.abs().mean().item():.4e}",
+                      f"grad raw_k : {gen.raw_k.grad.abs().mean().item():.4e}")
+                with torch.no_grad():
+                    p = gen.params_tensor()
+                    print(
+                        f"it={it+1:4d} loss={loss.item():.6f}",   # loss_total={loss_total.item():.6f}",
+                        f"Du={p.Du.item():.4f} Dv={p.Dv.item():.4f} F={p.F.item():.4f} k={p.k.item():.4f}"
+                    )
     
             if grad_clip is not None:
                 total_norm = torch.nn.utils.clip_grad_norm_(gen.parameters(), grad_clip)
                 if it != 0 and it % 25 == 0:
                     print("total_norm(before clip):", total_norm.item())
                     print("raw_k grad after clip, before optimization:", gen.raw_k.grad.abs().mean().item(), gen.raw_k.grad.abs().max().item())
+            #### end ####
 
         except KeyboardInterrupt:
             done = False
@@ -149,11 +152,13 @@ def main():
         done = True
     with torch.no_grad():
         p = gen.params_tensor()
-        print("Done.\nLearned params (tensor):" if done else f"Step {it} aborted.\nShowing params at step {it-1}:")
+        print("\33[31mDone.\nLearned params (tensor):\33[0m" if done else f"\33[31mStep {it} aborted.\nShowing params at step {it-1}:\33[0m")
         print("Du=", float(p.Du.cpu()),
               "Dv=", float(p.Dv.cpu()),
               "F=", float(p.F.cpu()),
               "k=", float(p.k.cpu()))
+        if not done:
+            print(f"To restore training, use parameters log_Du={gen.log_Du.item()}, log_Dv={gen.log_Dv.item()}, raw_F={gen.raw_F.item()}, raw_k={gen.raw_k.item()}.")
 
 
 if __name__ == "__main__":

@@ -18,9 +18,9 @@ def power_spectrum_2d(x: torch.Tensor, eps: float = 1e-8, log: bool = True) -> t
     ps = torch.fft.fftshift(ps, dim=(-2, -1))  # center low-freq
 
     # normalize to compare shapes only not the overall power strengths
-    ps_norm = ps / ps.sum(dim=(-2, -1), keepdim=True).clamp_min(eps)
+    # ps_norm = ps / ps.sum(dim=(-2, -1), keepdim=True).clamp_min(eps)
 
     if log:
-        ps_norm = torch.log(ps_norm + eps)
-    return ps.mean(), ps_norm.mean().item(), ps_norm
+        ps_log = torch.log(ps + eps)
+    return ps.mean(), ps_log.mean().item(), ps_log
 
