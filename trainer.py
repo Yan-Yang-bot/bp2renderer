@@ -90,8 +90,8 @@ def main():
 
             loss = torch.nn.functional.mse_loss(ps_pred, ps_tgt)
             loss += alpha * ((v_pred - v_tgt) ** 2).mean()
-            E_min = 5e-6
-            E_max = 7e1
+            E_min = 5e-5
+            E_max = 7e0
             loss_E = lam_E * (
                 torch.relu(E_min - E) +
                 torch.relu(E - E_max)
@@ -116,7 +116,7 @@ def main():
                 with torch.no_grad():
                     p = gen.params_tensor()
                     print(
-                        f"it={it+1:4d} loss={loss.item():.6f} loss_total={loss_total.item():.6f}"
+                        f"it={it+1:4d} loss={loss.item():.6f} loss_total={loss_total.item():.6f}",
                         f"Du={p.Du.item():.4f} Dv={p.Dv.item():.4f} F={p.F.item():.4f} k={p.k.item():.4f}"
                     )
             #### end ####
