@@ -1,5 +1,6 @@
 # trainer.py
 import os
+import copy
 from tqdm import trange
 import torch
 import torch.nn as nn
@@ -10,15 +11,46 @@ from radial_power_spectrum_loss import power_spectrum_2d
 from rd_generator import RDGenerator
 
 
+def scale_lr(opt, factor):
+    for g in opt.param_groups:
+        g["lr"] *= factor
+
+def restore_lr(opt, lrs):
+    for i, g in enumerate(opt.param_groups):
+        g["lr"] = lrs[i]
+
+# TODO: refactor main() into class Trainer.
 def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     gen = RDGenerator().to(device)
 
-    # --- 1) Make / load targets (no_grad)
+    # --- 1) Training hyperparams
+    train_steps = 2000
+    alpha = 0.0           # pixel L2 weight
+    grad_clip = None #1.5
+    batch_sim = 8          # how many sims per iter
+    init_lr = 1e-2
+    weight_decay=5e-4
+
+    # hyperparams for the forward stepping of truncated BPTT:
+    dt = 1.0
+    unroll_K = 1000         # truncated backprop steps
+    tol = 1e-3
+    max_steps = 40000
+
+    # hyperparams for adaptive lr:
+    max_tries = 21
+    shrink = 0.5
+    #min_lr = 1e-8
+
+    # hyperparams for getting targets
     B_targets = 512
     H = W = 128
     true_params = GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065)
+
+
+    # --- 2) Make / load targets (no_grad)
 
     param_tag = (
         f"Du{true_params.Du}_"
@@ -46,31 +78,68 @@ def main():
         torch.save(v_targets.cpu(), target_pt_path)
         print(f"Target patterns generated and saved to {target_pt_path}")
 
-    # --- 2) Learnable params + optimizer
-    opt = torch.optim.SGD(gen.parameters(), lr=1e-2, momentum=0.0, weight_decay=5e-4)
 
-    # --- 3) Training hyperparams
-    train_steps = 2000
-    batch_sim = 8          # how many sims per iter
-    unroll_K = 1000         # truncated backprop steps
-    dt = 1.0
-    alpha = 0.0           # pixel L2 weight
-    grad_clip = None #1.5
-    tol = 1e-3
-    max_steps = 40000
-    # lam_E = 3e-2
+    # --- 3) Optimizer + training
+    # TODO: wrap the adaptive-lr opt in a class.
+    opt = torch.optim.SGD(gen.parameters(), lr=init_lr, momentum=0.0, weight_decay=weight_decay)
 
-    # Optional: pick targets as batch too
     print("\33[31mStart training...\33[0m")
-    for it in trange(train_steps, desc="Training iters", leave=True):
+
+    lrs0 = [g["lr"] for g in opt.param_groups]
+    loss = None
+    for it in trange(train_steps+1, desc="Training iters", leave=True):
         try:
-    
-            # sample a batch of targets (distribution matching)
-            idx = torch.randint(0, B_targets, (batch_sim,), device=device)
-            v_tgt = v_targets[idx]  # [B,1,H,W]
-    
-            # random init every iter (matches "real world unknown init")
-            u, v = init_state_batch(batch_sim, H, W, device=device)
+            with torch.no_grad():
+                # These things are used in both the trial forward(s) and the real forward following it/them.
+                u_t, v_t = init_state_batch(batch_sim, H, W, device=device)
+                idx_t = torch.randint(0, B_targets, (batch_sim,), device=device)
+                v_t_tgt = v_targets[idx_t]
+                _, _, ps_t_tgt = power_spectrum_2d(v_t_tgt, log=True)
+
+            # To make the trial and real forwards use same elements, we put backprop with its tiral forwards before real forward. This necessitates the skipping of the first backprop as there is no loss at this time.
+            if loss is not None:
+                # ---------- safe step ----------
+                # 1) backup things before repeated trials (because they need resets)
+                gen.backup_params()
+                # 2) get the base gradients (for later linear search of lr)
+                opt.zero_grad(set_to_none=True)
+                loss.backward()
+                opt_state0 = copy.deepcopy(opt.state_dict())
+
+                for i in range(max_tries):
+                    opt.step()
+                    with torch.no_grad():
+                        _, v_t_pred, _ = gen.simulate_to_steady_trunc_bptt(
+                            u=u_t, v=v_t,
+                            batch_sim=batch_sim,
+                            dt=dt,
+                            K=unroll_K,
+                            tol=tol,
+                            max_steps=max_steps,
+                            device=device,
+                            return_steps_taken=True
+                        )
+                        _, _, ps_t_pred = power_spectrum_2d(v_t_pred, log=True)
+                        loss_check = F.mse_loss(ps_t_pred, ps_t_tgt)
+
+                    ok = torch.isfinite(v_t_pred).all() and torch.isfinite(ps_t_pred).all() and torch.isfinite(loss_check)
+                    # Maybe also check 0.0 v_pred std, etc., too.
+                    if ok: break
+                    else:
+                        gen.restore_params()
+                        scale_lr(opt, shrink)
+                        opt.load_state_dict(copy.deepcopy(opt_state0))
+
+                else:
+                    # if all retries failed, restore and skip this iter.
+                    print("All failed with NaN.")
+                    gen.restore_params()
+
+                restore_lr(opt, lrs0)
+                print(f"Tried {i+1} lrs.")
+            #### end of trials ####
+
+            u, v = u_t, v_t
     
             # differentiable forward (fixed K steps)
             u_pred, v_pred, steps_taken = gen.simulate_to_steady_trunc_bptt(
@@ -84,11 +153,11 @@ def main():
                 return_steps_taken=True,
             )
 
+            ps_tgt = ps_t_tgt # [B,H,W]
             E, ps_mean, ps_pred = power_spectrum_2d(v_pred, log=True)   # [B,H,W]
-            _, _, ps_tgt = power_spectrum_2d(v_tgt, log=True) # [B,H,W]
 
-            loss = torch.nn.functional.mse_loss(ps_pred, ps_tgt)
-            loss += alpha * ((v_pred - v_tgt) ** 2).mean()
+            loss = F.mse_loss(ps_pred, ps_tgt)
+            #loss += alpha * ((v_pred - v_tgt) ** 2).mean()
             #loss_E = lam_E * (
             #    torch.relu(E_min - E) +
             #    torch.relu(E - E_max)
@@ -106,48 +175,22 @@ def main():
                 g_v = torch.autograd.grad(loss, v_pred, retain_graph=True, allow_unused=True)[0]
                 print("dL/dv_pred:", "None\n" if g_v is None else f"({g_v.abs().mean().item():.4e}, {g_v.abs().max().item():.4e})\n")
 
-                loss2 = ((v_pred - v_tgt) ** 2).mean()
-                g2 = torch.autograd.grad(loss2, gen.raw_F, retain_graph=True, allow_unused=True)[0]
-                print("with L2, grad raw_F:", "None\n" if g2 is None else f"({g2.abs().mean().item():.4e}, {g2.abs().max().item():.4e})\n")
-
                 print("\033[36mBefore backprop (last grads)\033[0m", f"grad log_Du: {gen.log_Du.grad.abs().mean().item():.4e}",
-                      f"grad log_Dv: {gen.log_Dv.grad.abs().mean().item():.4e}",
-                      f"grad raw_F : {gen.raw_F.grad.abs().mean().item():.4e}",
-                      f"grad raw_k : {gen.raw_k.grad.abs().mean().item():.4e}")
-            #### end ####
-
-            opt.zero_grad(set_to_none=True)
-            loss.backward()
-
-            #### debug ####
-            if debug_freq(it, print_more=4):
-                print("\033[34mAfter backprop (before clip)\033[0m", f"grad log_Du: {gen.log_Du.grad.abs().mean().item():.04e}",
                       f"grad log_Dv: {gen.log_Dv.grad.abs().mean().item():.4e}",
                       f"grad raw_F : {gen.raw_F.grad.abs().mean().item():.4e}",
                       f"grad raw_k : {gen.raw_k.grad.abs().mean().item():.4e}")
                 with torch.no_grad():
                     p = gen.params_tensor()
                     print(
-                        f"it={it+1:4d} loss={loss.item():.6f}",   # loss_total={loss_total.item():.6f}",
+                        f"it={it:4d} loss={loss.item():.6f}",   # loss_total={loss_total.item():.6f}",
                         f"Du={p.Du.item():.4f} Dv={p.Dv.item():.4f} F={p.F.item():.4f} k={p.k.item():.4f}"
                     )
-    
-            if grad_clip is not None:
-                total_norm = torch.nn.utils.clip_grad_norm_(gen.parameters(), grad_clip)
-                if it != 0 and it % 25 == 0:
-                    print("total_norm(before clip):", total_norm.item())
-                    print("raw_k grad after clip, before optimization:", gen.raw_k.grad.abs().mean().item(), gen.raw_k.grad.abs().max().item())
             #### end ####
 
         except KeyboardInterrupt:
             done = False
             break
         
-        try:
-            opt.step()
-        except KeyboardInterrupt:
-            print("Ctrl+C ignored, continuing...")
-
     else:
         done = True
     with torch.no_grad():

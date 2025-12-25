@@ -16,6 +16,16 @@ class RDGenerator(nn.Module):
         self.raw_F  = nn.Parameter(torch.tensor(0.0))
         self.raw_k  = nn.Parameter(torch.tensor(0.0))
         self.max_Fk = float(max_Fk)
+        self.backup = {n: p.detach().clone() for n, p in self.named_parameters() if p.requires_grad}
+
+    def backup_params(self): # always overwrite
+        self.backup = {n: p.detach().clone() for n, p in self.named_parameters() if p.requires_grad}
+
+    def restore_params(self):
+        with torch.no_grad():
+            for n, p in self.named_parameters():
+                if p.requires_grad:
+                    p.copy_(self.backup[n])
 
     def params_tensor(self) -> GSParams:
         Du = F.softplus(self.log_Du)                  # >0
