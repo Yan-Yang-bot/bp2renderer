@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from tools import GSParams, init_state_batch, debug_freq
-from radial_power_spectrum_loss import power_spectrum_2d
+from power_spectrum_2d import power_spectrum_2d
 from rd_generator import RDGenerator
 
 
@@ -39,8 +39,8 @@ class Trainer:
         self.tol = 1e-3
         self.max_steps = 40000
         # adaptive-lr hyperparams
-        self.max_tries = 21
-        self.shrink = 0.5
+        self.max_tries = 8
+        self.shrink = 0.1
         # target generation hyperparams
         self.B_targets = 512
         self.H = 128
@@ -80,7 +80,7 @@ class Trainer:
 
         print("\33[31mStart training...\33[0m")
 
-        lrs0 = [g["lr"] for g in opt.param_groups]
+        lrs0 = lrs_trial = [g["lr"] for g in opt.param_groups]
         loss = None
         for it in trange(self.train_steps+1, desc="Training iters", leave=True):
             try:
@@ -94,17 +94,47 @@ class Trainer:
                 # To make the trial and real forwards use same elements, we put backprop with its tiral forwards before real forward. This necessitates the skipping of the first backprop as there is no loss at this time.
                 if loss is not None:
                     # ---------- safe step ----------
-                    # 1) backup things before repeated trials (because they need resets)
+                    lrs_trial = lrs0
+                    # 1) backup things before repeated trials (because they require param resets)
                     self.gen.backup_params()
                     # 2) get the base gradients (for later linear search of lr)
                     opt.zero_grad(set_to_none=True)
                     loss.backward()
+                    #### debug ####
+                    mx = 0.0
+                    mx_name = None
+                    for n,p in self.gen.named_parameters():
+                        if p.requires_grad and p.grad is not None:
+                            v = p.grad.detach().abs().max().item()
+                            if v > mx:
+                                mx = v; mx_name = n
+                    print(f"[it {it}] max|grad|={mx:.3e} at {mx_name}, lr={opt.param_groups[0]['lr']:.3e}, lr*maxgrad={opt.param_groups[0]['lr']*mx:.3e}")
+                    #### end ####
                     opt_state0 = copy.deepcopy(opt.state_dict())
 
+                    print("\33[31mlr trials:\33[0m")
                     for i in range(self.max_tries):
+                        print(f"Trial {i+1}...")
+                        self.gen.restore_params()
+                        opt.load_state_dict(copy.deepcopy(opt_state0))
+                        restore_lr(opt, lrs_trial)
+                        #### debug ####
+                        with torch.no_grad():
+                            _, v0, _ = self.gen.simulate_to_steady_trunc_bptt(u=u_t, v=v_t,
+                                batch_sim=self.batch_sim,
+                                dt=self.dt,
+                                K=self.unroll_K,
+                                tol=self.tol,
+                                max_steps=self.max_steps,
+                                device=self.device,
+                                return_steps_taken=True)
+                            ok0 = torch.isfinite(v0).all().item()
+                        print("no-step finite?", ok0)
+                        print([g["lr"] for g in opt.param_groups])
+                        #### end ####
                         opt.step()
                         with torch.no_grad():
-                            _, v_t_pred, _ = self.gen.simulate_to_steady_trunc_bptt(
+                            _, v_t_pred, t_steps_taken = self.gen.simulate_to_steady_trunc_bptt(
                                 u=u_t, v=v_t,
                                 batch_sim=self.batch_sim,
                                 dt=self.dt,
@@ -117,21 +147,24 @@ class Trainer:
                             _, _, ps_t_pred = power_spectrum_2d(v_t_pred, log=True)
                             loss_check = F.mse_loss(ps_t_pred, ps_t_tgt)
 
-                        ok = torch.isfinite(v_t_pred).all() and torch.isfinite(ps_t_pred).all() and torch.isfinite(loss_check)
-                        # Maybe also check 0.0 v_pred std, etc., too.
+                        ok = torch.isfinite(v_t_pred).all().item() and \
+                            torch.isfinite(ps_t_pred).all().item() and \
+                                torch.isfinite(loss_check).item()
+                        # TODO: Maybe also check 0.0 v_pred std, etc., too.
+                        print(f"{t_steps_taken}(maximum {self.max_steps}) + {self.unroll_K} steps until converge")
+                        print(ok, [g["lr"] for g in opt.param_groups])
                         if ok: break
                         else:
-                            self.gen.restore_params()
-                            scale_lr(opt, shrink)
-                            opt.load_state_dict(copy.deepcopy(opt_state0))
+                            print(f"Tried {i+1}.", end=" ")
+                            scale_lr(opt, self.shrink)
+                            lrs_trial = [g["lr"] for g in opt.param_groups]
+                            print(lrs_trial, end=" ")
+                            
 
                     else:
-                        # if all retries failed, restore and skip this iter.
-                        print("All failed with NaN.")
-                        self.gen.restore_params()
+                        raise ValueError("All lrs failed with NaN.")
 
-                    restore_lr(opt, lrs0)
-                    print(f"Tried {i+1} lrs.")
+                    print("\n\33[31mEnd lr trials.\33[0m")
                 #### end of trials ####
 
                 u, v = u_t, v_t
@@ -161,7 +194,7 @@ class Trainer:
 
 
                 #### debug ####
-                if debug_freq(it, print_more=4):
+                if debug_freq(it, print_more=1):
 
                     pred_std = v_pred.std(dim=(-2, -1))
                     print(f"\n\n\033[32mPrediction stats: {pred_std.min().item():.04e}, {pred_std.median().item():.04e}, {pred_std.max().item():.04e}")
@@ -210,5 +243,6 @@ class Trainer:
 
 if __name__ == "__main__":
     trainer = Trainer()
+    trainer.make_targets()
     trainer.train()
 
