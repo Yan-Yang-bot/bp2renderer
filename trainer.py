@@ -65,7 +65,7 @@ class Trainer:
         else:
             print(f"Generating target patterns using: {self.true_params}.")
             u_t0, v_t0 = init_state_batch(self.B_targets, self.H, self.W, device=self.device)
-            print(f"Initial status obtained for a batch of {B_targets}, iterating...")
+            print(f"Initial status obtained for a batch of {self.B_targets}, iterating...")
             self.v_targets = RDGenerator.generate_gray_scott_target_batch(
                 u=u_t0, v=v_t0, dt=self.dt,
                 params=self.true_params, device=self.device,
@@ -80,39 +80,45 @@ class Trainer:
 
         print("\33[31mStart training...\33[0m")
 
-        lrs0 = lrs_trial = [g["lr"] for g in opt.param_groups]
+        lrs0 = [g["lr"] for g in opt.param_groups]
         loss = None
         for it in trange(self.train_steps+1, desc="Training iters", leave=True):
             try:
                 with torch.no_grad():
-                    # These things are used in both the trial forward(s) and the real forward following it/them.
+                    # These things, a batch of initial state (u, v), sampled batch (same size) of target v and their
+                    # power spectrum, are used in both the trial forward(s) and the real forward following.
                     u_t, v_t = init_state_batch(self.batch_sim, self.H, self.W, device=self.device)
-                    idx_t = torch.randint(0, self.B_targets, (self.batch_sim,), device=self.device)
-                    v_t_tgt = self.v_targets[idx_t]
-                    _, _, ps_t_tgt = power_spectrum_2d(v_t_tgt, log=True)
+                    target_idx_t = torch.randint(0, self.B_targets, (self.batch_sim,), device=self.device)
+                    v_t_target = self.v_targets[target_idx_t]
+                    _, _, ps_t_target = power_spectrum_2d(v_t_target, log=True)
 
-                # To make the trial and real forwards use same elements, we put backprop with its tiral forwards before real forward. This necessitates the skipping of the first backprop as there is no loss at this time.
+                # To make the trial and real forwards use same elements, we first backprop with the previous trial
+                # forward, and make the real forward afterward.
+                # This necessitates the skipping of the first backprop as there is no loss at this time.
                 if loss is not None:
                     # ---------- safe step ----------
-                    lrs_trial = lrs0
-                    # 1) backup things before repeated trials (because they require param resets)
-                    self.gen.backup_params()
-                    # 2) get the base gradients (for later linear search of lr)
+                    # 1) get the base gradients (for later linear search of lr)
                     opt.zero_grad(set_to_none=True)
                     loss.backward()
+                    # 2) backup things before repeated trials (because they require param resets)
+                    opt_state0 = copy.deepcopy(opt.state_dict())
+                    self.gen.backup_params()
+
                     #### debug ####
-                    mx = 0.0
-                    mx_name = None
-                    for n,p in self.gen.named_parameters():
+                    max = 0.0
+                    max_name = None
+                    for n, p in self.gen.named_parameters():
                         if p.requires_grad and p.grad is not None:
                             v = p.grad.detach().abs().max().item()
-                            if v > mx:
-                                mx = v; mx_name = n
-                    print(f"[it {it}] max|grad|={mx:.3e} at {mx_name}, lr={opt.param_groups[0]['lr']:.3e}, lr*maxgrad={opt.param_groups[0]['lr']*mx:.3e}")
+                            if v > max:
+                                max = v
+                                max_name = n
+                    print(f"[it {it}] max|grad|={max:.3e} at {max_name}, lr={opt.param_groups[0]['lr']:.3e},"
+                          f"lr*maxgrad={opt.param_groups[0]['lr']*max:.3e}")
                     #### end ####
-                    opt_state0 = copy.deepcopy(opt.state_dict())
 
                     print("\33[31mlr trials:\33[0m")
+                    lrs_trial = lrs0
                     for i in range(self.max_tries):
                         print(f"Trial {i+1}...")
                         self.gen.restore_params()
@@ -120,17 +126,17 @@ class Trainer:
                         restore_lr(opt, lrs_trial)
                         #### debug ####
                         with torch.no_grad():
-                            _, v0, _ = self.gen.simulate_to_steady_trunc_bptt(u=u_t, v=v_t,
+                            _, v0 = self.gen.simulate_to_steady_trunc_bptt(u=u_t, v=v_t,
                                 batch_sim=self.batch_sim,
                                 dt=self.dt,
                                 K=self.unroll_K,
                                 tol=self.tol,
                                 max_steps=self.max_steps,
                                 device=self.device,
-                                return_steps_taken=True)
+                                return_steps_taken=False)
                             ok0 = torch.isfinite(v0).all().item()
-                        print("no-step finite?", ok0)
-                        print([g["lr"] for g in opt.param_groups])
+                        print("DEBUG: when using last params to forward, are all steps finite?", ok0,
+                              ". learning rate:", opt.param_groups[0]["lr"], "END")
                         #### end ####
                         opt.step()
                         with torch.no_grad():
@@ -145,21 +151,22 @@ class Trainer:
                                 return_steps_taken=True
                             )
                             _, _, ps_t_pred = power_spectrum_2d(v_t_pred, log=True)
-                            loss_check = F.mse_loss(ps_t_pred, ps_t_tgt)
+                            loss_check = F.mse_loss(ps_t_pred, ps_t_target)
 
                         ok = torch.isfinite(v_t_pred).all().item() and \
                             torch.isfinite(ps_t_pred).all().item() and \
-                                torch.isfinite(loss_check).item()
+                            torch.isfinite(loss_check).item()
                         # TODO: Maybe also check 0.0 v_pred std, etc., too.
-                        print(f"{t_steps_taken}(maximum {self.max_steps}) + {self.unroll_K} steps until converge")
-                        print(ok, [g["lr"] for g in opt.param_groups])
-                        if ok: break
+                        print(f"Trial forward done. Real forward will take {t_steps_taken}(maximum {self.max_steps})"
+                              f"steps without grad + {self.unroll_K} steps with grad to converge.")
+                        print("All finite?", ok, ". learning rate:", [g["lr"] for g in opt.param_groups])
+                        if ok:
+                            break
                         else:
                             print(f"Tried {i+1}.", end=" ")
                             scale_lr(opt, self.shrink)
                             lrs_trial = [g["lr"] for g in opt.param_groups]
-                            print(lrs_trial, end=" ")
-                            
+                            print("after scale, next round lr:", lrs_trial)
 
                     else:
                         raise ValueError("All lrs failed with NaN.")
@@ -181,27 +188,20 @@ class Trainer:
                     return_steps_taken=True,
                 )
 
-                ps_tgt = ps_t_tgt # [B,H,W]
-                E, ps_mean, ps_pred = power_spectrum_2d(v_pred, log=True)   # [B,H,W]
+                energy, ps_mean, ps_pred = power_spectrum_2d(v_pred, log=True)   # [B,H,W]
 
-                loss = F.mse_loss(ps_pred, ps_tgt)
+                loss = F.mse_loss(ps_pred, ps_t_target)
                 #loss += alpha * ((v_pred - v_tgt) ** 2).mean()
-                #loss_E = lam_E * (
-                #    torch.relu(E_min - E) +
-                #    torch.relu(E - E_max)
-                #)
-                #loss_total = loss + loss_E
-
 
                 #### debug ####
                 if debug_freq(it, print_more=1):
 
                     pred_std = v_pred.std(dim=(-2, -1))
-                    print(f"\n\n\033[32mPrediction stats: {pred_std.min().item():.04e}, {pred_std.median().item():.04e}, {pred_std.max().item():.04e}")
-                    print(f"Power spectrum: {E.item():.4e}, w/ log: {ps_mean:.4e}\033[0m\n")
+                    print(f"\n\n\033[32mPrediction v's std: min {pred_std.min().item():.04e}, median {pred_std.median().item():.04e}, max {pred_std.max().item():.04e}")
+                    print(f"Power spectrum mean: {energy.item():.4e} (with log: {ps_mean:.4e})\033[0m\n")
 
                     g_v = torch.autograd.grad(loss, v_pred, retain_graph=True, allow_unused=True)[0]
-                    print("dL/dv_pred:", "None\n" if g_v is None else f"({g_v.abs().mean().item():.4e}, {g_v.abs().max().item():.4e})\n")
+                    print("dL/dv_pred:", "None\n" if g_v is None else f"(min: {g_v.abs().mean().item():.4e}, max: {g_v.abs().max().item():.4e})\n")
 
                     print("\033[36mBefore backprop (last grads)\033[0m", f"grad log_Du: {self.gen.log_Du.grad.abs().mean().item():.4e}",
                         f"grad log_Dv: {self.gen.log_Dv.grad.abs().mean().item():.4e}",
@@ -223,13 +223,16 @@ class Trainer:
             done = True
         with torch.no_grad():
             p = self.gen.params_tensor()
-            print("\33[31mDone.\nLearned params (tensor):\33[0m" if done else f"\33[31mStep {it} aborted.\nShowing params at step {it-1}:\33[0m")
+            print("\33[31mDone.\nLearned params (tensor):\33[0m" if done else
+                  f"\33[31mStep {it} aborted.\nShowing params at step {it-1}:\33[0m")
             print("Du=", float(p.Du.cpu()),
                 "Dv=", float(p.Dv.cpu()),
                 "F=", float(p.F.cpu()),
                 "k=", float(p.k.cpu()))
             if not done:
-                print(f"To restore training, use parameters log_Du={self.gen.log_Du.item()}, log_Dv={self.gen.log_Dv.item()}, raw_F={self.gen.raw_F.item()}, raw_k={self.gen.raw_k.item()}.")
+                print(f"To restore training, use parameters"
+                      f"log_Du={self.gen.log_Du.item()}, log_Dv={self.gen.log_Dv.item()},"
+                      f"raw_F={self.gen.raw_F.item()}, raw_k={self.gen.raw_k.item()}.")
 
     def test(self):
         pass
