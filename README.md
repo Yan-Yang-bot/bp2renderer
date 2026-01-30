@@ -38,8 +38,6 @@ Implicit differentiation and other extensions discussed in [1,2] are not yet imp
 Contact: **yan.yang.research@proton.me**
 
 
----
-
 ### References
 
 [1] Y. Yang, *Expectation-Maximization Style Algorithm for Task-Driven Differentiable Renderer Optimization*.  
@@ -49,3 +47,36 @@ DOI: https://doi.org/10.5281/zenodo.17662717
 [2] Y. Yang, *Towards PDE-Structured Generative Modeling: Differentiable Simulators, Flow-Matching, and Pattern Manifolds (Proposal)*.  
 Zenodo, Dec. 11, 2025.  
 DOI: https://doi.org/10.5281/zenodo.17897116
+
+
+
+---
+
+## How to use this code repo
+
+💡 Create and activate a virtual environment using Python 3.9, run
+```
+pip install -r requirements.txt
+```
+---
+
+💡 To start exploring the parameter space of Gray Scott, run
+```
+python trainer.py
+```
+
+---
+
+💡 To show animations of current parameters, use
+```
+python generate_targets.py 4
+```
+The parameters must be found in the output log of `python trainer.py`
+(even if you interrupt training) and manually set in the `generate_targets.py` file.
+
+---
+
+💡 To plot pair-wise losses of a generated targets in `*.pt`, use
+```
+python within_target_loss.py
+```
