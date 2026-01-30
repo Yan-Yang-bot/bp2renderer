@@ -28,6 +28,8 @@ Other useful components include:
 - **chaotic spatiotemporal dynamics**  
   *(if verified, not numerical)*
 
+- **fractal-like bifurcation boundaries**
+
 *(The author plans to avoid going into **numerically invalid regions** strictly, so they are not in the above list.)*
 
 These insights will guide further code updates and optimizer design.  
