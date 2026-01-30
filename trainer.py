@@ -1,6 +1,7 @@
 # trainer.py
 import os
 import copy
+import math
 from tqdm import trange
 import torch
 import torch.nn.functional as F
@@ -27,6 +28,7 @@ class Trainer:
         self.set_default_hyperparams()
         self.loss = None
         self.opt_state0 = None
+        self.n_steps = None
         # TODO: wrap the adaptive-lr opt in a class.
         self.opt = torch.optim.SGD(self.gen.parameters(), lr=self.init_lr, momentum=0.0, weight_decay=self.weight_decay)
         self.lrs0 = [g["lr"] for g in self.opt.param_groups]
@@ -39,7 +41,7 @@ class Trainer:
         self.alpha = 0.0
         self.grad_clip = None
         self.batch_sim = 8
-        self.init_lr = 1.2e-2
+        self.init_lr = 0.086  # use 0.086 / ln(n_steps) # original 1.2e-2
         self.weight_decay = 5e-4
         # simulation hyperparams
         self.dt = 1.0
@@ -100,6 +102,10 @@ class Trainer:
         self.gen.restore_params()
         self.opt.load_state_dict(copy.deepcopy(self.opt_state0))
         load_lr(self.opt, self.lrs_trial)
+
+        print("initial lr:", self.lrs0,
+              "current trial lr:", self.lrs_trial,
+              "verify lr in opt:", self.opt.param_groups[0]['lr'])
 
         self.opt.step()
         print("Parameters updated:")
@@ -163,6 +169,7 @@ class Trainer:
                     # 2) backup things before repeated trials (because they require param resets)
                     self.opt_state0 = copy.deepcopy(self.opt.state_dict())
                     self.gen.backup_params()
+                    self.lrs0 = [self.opt.param_groups[0]['lr'] / math.log(self.n_steps)]
                     if debug_freq(it, print_more=1):
                         print("\033[36mGrads (last iteration's forward & backprop both done)\033[0m",
                               f"grad log_Du: {self.gen.log_Du.grad.abs().mean().item():.4e}",
@@ -180,7 +187,7 @@ class Trainer:
                                 max_v = v
                                 max_name = n
                     print(f"[it {it}] max|grad|={max_v:.3e} at {max_name}, lr={self.opt.param_groups[0]['lr']:.3e},"
-                          f"lr*maxgrad={self.opt.param_groups[0]['lr']*max_v:.3e}")
+                          f"lr*maxgrad={self.opt.param_groups[0]['lr'] * max_v:.3e}")
                     #### end ####
 
                     print("\33[31mlr trials:\33[0m")
@@ -201,7 +208,7 @@ class Trainer:
                 u, v = self.u_t, self.v_t
 
                 # differentiable forward (fixed K steps)
-                u_pred, v_pred, overflow, steps_taken = self.gen.simulate_to_steady_trunc_bptt(
+                u_pred, v_pred, overflow, self.n_steps = self.gen.simulate_to_steady_trunc_bptt(
                     u=u, v=v,
                     dt=self.dt,
                     K=self.unroll_K,
@@ -217,7 +224,7 @@ class Trainer:
 
                 self.loss = F.mse_loss(ps_pred, self.ps_t_target)
                 # self.loss += alpha * ((v_pred - v_tgt) ** 2).mean()
-                print("real run steps taken:", steps_taken)
+                print("real run steps taken:", self.n_steps)
 
                 #### debug ####
                 if debug_freq(it, print_more=1):
