@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from typing import Union
 from tqdm import trange
 
-from tools import GSParams, gray_scott_step
+from tools import GSParams, n_steps
 
 
 class RDGenerator(nn.Module):
@@ -55,7 +55,7 @@ class RDGenerator(nn.Module):
         disable_progress_bar: bool = False,
     ):
         """
-        shared simulattion core: each sample converges and freezes separately.
+        shared simulation core: each sample converges and freezes separately.
         used in target generation (no grad) and training warmup (no grad).
 
         u,v: [B,1,H,W]
@@ -77,7 +77,7 @@ class RDGenerator(nn.Module):
             # slice active samples only
             u_a = u.index_select(0, active_idx)
             v_a = v.index_select(0, active_idx)
-            u_next_a, v_next_a = gray_scott_step(u_a, v_a, p, dt)
+            u_next_a, v_next_a = n_steps(u_a, v_a, p, dt, n=1)
 
             newly_a = RDGenerator._per_sample_converged(u_next_a, v_next_a, u_a, v_a, tol)
             # write back updated states for active samples
@@ -110,13 +110,9 @@ class RDGenerator(nn.Module):
         tol: float = 1e-3,
         return_uv: bool = False,
     ):
-        """
-        你给的 generate_gray_scott_target_batch：每样本独立停。
-        放到 RDGenerator 里，方便统一接口。
-        """
         dev = torch.device(device)
-        u = u.to(device)
-        v = v.to(device)
+        u = u.to(dev)
+        v = v.to(dev)
         u, v, _, nstep = RDGenerator._simulate_until_converged(
             u=u, v=v, p=params, dt=dt, tol=tol, max_steps=max_steps
         )
@@ -133,7 +129,6 @@ class RDGenerator(nn.Module):
         self,
         u: torch.Tensor,
         v: torch.Tensor,
-        batch_sim: int,
         dt: float = 1.0,
         K: int = 3000,
         tol: float = 2e-4,
@@ -151,27 +146,21 @@ class RDGenerator(nn.Module):
 
         # Phase 1: run-to-steady without graph
         p = self.params_tensor()
-        with torch.no_grad():
-            u, v, _, steps_taken = self._simulate_until_converged(
-                u=u, v=v, p=p, dt=dt, tol=tol, max_steps=max_steps, disable_progress_bar=True
-            )
+        # with torch.no_grad():
+        #     u, v, _, steps_taken = self._simulate_until_converged(
+        #         u=u, v=v, dt=dt, tol=tol, max_steps=max_steps, disable_progress_bar=True
+        #     )
+        # TODO: Truncated BPTT is temporarily disabled, enable it (above commented code) when necessary.
+        u, v, _, steps_taken = self._simulate_until_converged(
+            u=u, v=v, p=p, dt=dt, tol=tol, max_steps=max_steps, disable_progress_bar=True
+        )
 
         # Phase 2: truncated BPTT window with graph
-        u = u.detach()
-        v = v.detach()
+        # TODO: Truncated BPTT is temporarily disabled, enable it (below detach code) when necessary.
+        # u = u.detach()
+        # v = v.detach()
 
-        p = self.params_tensor()  # same underlying Parameters, now used in grad mode
-
-        #### debug ####
-        #print("Phase2 u.requires_grad:", u.requires_grad, "v.requires_grad:", v.requires_grad)
-        #print("Phase2 p types:", type(p.Du), type(p.F))
-        #if isinstance(p.Du, torch.Tensor):
-        #    print("Phase2 p.Du.requires_grad:", p.Du.requires_grad)
-        #if isinstance(p.F, torch.Tensor):
-        #    print("Phase2 p.F.requires_grad:", p.F.requires_grad)
-        #### end ####
-        for _ in range(K):
-            u, v = gray_scott_step(u, v, p, dt)
+        u, v = n_steps(u, v, p, dt, K)
 
         if return_steps_taken:
             return u, v, steps_taken

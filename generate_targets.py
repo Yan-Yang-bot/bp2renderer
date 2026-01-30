@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 
 import sys
 
+
 def print_usage_and_exit():
     print(
         "Please specify the task you want to perform:\n"
@@ -33,11 +34,12 @@ except ValueError:
 if task_id not in (1, 2, 3, 4):
     print_usage_and_exit()
 
-if task_id == 3: target_pt_path = sys.argv[2]
+if task_id == 3:
+    target_pt_path = sys.argv[2]
 task = 'test training forward' if task_id == 2 else \
-    ('generate targets' if task_id == 1 else \
-        ('show stored targets' if task_id ==3 else \
-            ('animation' if task_id == 4 else '')))
+       'generate targets' if task_id == 1 else \
+       'show stored targets' if task_id ==3 else \
+       'animation' if task_id == 4 else ''
 print(f"Current task: {task}")
 
 
@@ -46,36 +48,36 @@ if __name__ == "__main__":
         device = torch.device("cuda")
     else:
         device = torch.device("cpu")
-    #params = GSParams(Du=0.1365, Dv=0.10145, F=0.0392, k=0.0555)
-    # params = GSParams(Du=0.1269, Dv=0.1269, F=0.0500, k=0.0500)
-    params = GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065)
+    #params = GSParams(Du=0.1270, Dv=0.1269, F=0.0500, k=0.0501)
+    params = GSParams(Du=0.1341, Dv=0.1198, F=0.0477, k=0.0580)
+    #params = GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065)
     print('parameters generated.')
 
     print('Generating...')
     u, v = init_state_batch(B=4, H=128, W=128, device=device)
     if task == 'generate targets':
         v_batch = RDGenerator.generate_gray_scott_target_batch(u, v, params=params, device=device, tol=1e-8, max_steps=50000)
+    elif task == 'test training forward':
+        gen = RDGenerator()
+        v_batch = gen.simulate_to_steady_trunc_bptt(u, v, device=device)[1]
+    elif task == 'show stored targets':
+        v_batch = torch.load(target_pt_path, map_location=device)
     elif task == 'animation':
         u, v = u[0].squeeze(0), v[0].squeeze(0)
         fig, im, txt = get_initial_artists(v.cpu().numpy())
         updates_per_frame = 4
         dt = 1.0
         animation_arguments = (updates_per_frame, im, txt, u, v, params, dt)
-        ani = animation.FuncAnimation(fig,  #matplotlib figure
-                              updatefig,  # function that takes care of the update
-                              fargs=animation_arguments,  # arguments to pass to this function
-                              interval=1,  # update every `interval` milliseconds
-                              frames=50000,
-                              blit=False,  # optimize the drawing update
-                              )
+        ani = animation.FuncAnimation(fig,  # matplotlib figure
+                                      updatefig,  # function that takes care of the update
+                                      fargs=animation_arguments,  # arguments to pass to this function
+                                      interval=1,  # update every `interval` milliseconds
+                                      frames=50000,
+                                      blit=False,  # optimize the drawing update
+                                      )
         # show the animation
         plt.show()
         exit(0)
-    elif task == 'test training forward':
-        gen = RDGenerator()
-        v_batch = gen.simulate_to_steady_trunc_bptt(u, v, batch_sim=4, device=device)[1]
-    elif task == 'show stored targets':
-        v_batch = torch.load(target_pt_path, map_location=device)
 
     fig, axes = plt.subplots(2, 2, figsize=(8, 8))
     v_batch_np = v_batch.detach().cpu().numpy().squeeze(1)

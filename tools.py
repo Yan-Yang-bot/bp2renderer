@@ -42,7 +42,7 @@ def init_state_batch(
     return u, v
 
 
-def gray_scott_step(u: torch.Tensor, v: torch.Tensor, p: GSParams, dt: float):
+def _gray_scott_step(u: torch.Tensor, v: torch.Tensor, p: GSParams, dt: float):
     Lu = laplacian_periodic(u)
     Lv = laplacian_periodic(v)
 
@@ -54,8 +54,21 @@ def gray_scott_step(u: torch.Tensor, v: torch.Tensor, p: GSParams, dt: float):
     v_next = v + dt * dv
     return u_next, v_next
 
-def debug_freq(iter: int, print_more: int = 0) -> bool:
-    p = iter != 0 and iter % 30 == 0 or \
-        iter > 125 and iter % 25 == 0 or \
-        iter > 200 and iter % 10 == 0 or iter > 300
-    return p or iter != 0 and iter % print_more == 0 if print_more else p
+
+def n_steps(u: torch.Tensor, v: torch.Tensor, p: GSParams, dt: float, n: int):
+    for _ in range(n):
+        u2, v2 = _gray_scott_step(u, v, p, dt)
+
+    v_max, v_min = v2.amax(), v2.amin()
+    if v_max > 1.0 or v_min < 0.0:
+        print("Overflow:", v_min, v_max)
+
+    return u2, v2
+
+
+def debug_freq(it: int, print_more: int = 0) -> bool:
+    p = it % 30 == 0 or \
+        it > 125 and it % 25 == 0 or \
+        it > 200 and it % 10 == 0 or \
+        it > 300
+    return it != 0 and ((p or it % print_more == 0) if print_more else p)
