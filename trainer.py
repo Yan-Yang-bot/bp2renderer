@@ -35,7 +35,7 @@ class Trainer:
     
     def set_default_hyperparams(self):
         # training hyperparams
-        self.train_steps = 2000
+        self.train_steps = 4000
         self.alpha = 0.0
         self.grad_clip = None
         self.batch_sim = 8
@@ -132,10 +132,10 @@ class Trainer:
         if ok:
             return True
         else:
-            print(f"Done trying No.{i + 1} {self.lrs_trial}.", end=" ")
+            print(f"Done trying No.{i + 1} {self.lrs_trial}.")
             scale_lr(self.opt, self.shrink if shrink else self.jump)
             self.lrs_trial = [g["lr"] for g in self.opt.param_groups]
-            print("After scale, next round lr:", self.lrs_trial)
+            print("After scale, next round lr:", self.lrs_trial, "\n")
             return False
 
     def train(self):
@@ -257,7 +257,7 @@ class Trainer:
                   "F=", float(p.F.cpu()),
                   "k=", float(p.k.cpu()))
             if not done:
-                print(f"To restore training, use parameters"
+                print(f"To restore training, use parameters "
                       f"log_Du={self.gen.log_Du.item()}, log_Dv={self.gen.log_Dv.item()},"
                       f"raw_F={self.gen.raw_F.item()}, raw_k={self.gen.raw_k.item()}.")
 
