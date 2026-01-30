@@ -1,3 +1,33 @@
+## How to use this code repo
+
+💡 Create and activate a virtual environment using Python 3.9, run
+```
+pip install -r requirements.txt
+```
+---
+
+💡 To start exploring the parameter space of Gray Scott, run
+```
+python trainer.py
+```
+There is a target generation stage the first time you run it, but the targets will be stored in a `*.pt` file and reused when you repeat this command. Entering training, logs will show you at each iteration what gradients are generated, what learning rates are tried, which learning rate is finally used, how many Gray Scott discretized steps were taken, when there are overflows or NaN, and what the current parameters are.
+
+---
+
+💡 If you're not satisfied with just log information, copy the logged parameters into `generate_targets.py` and use the following to show stepping animations using such parameters:
+```
+python generate_targets.py 4
+```
+
+---
+
+💡 To plot pair-wise losses (as heat maps) among generated targets in `*.pt`, use
+```
+python within_target_loss.py
+```
+
+---
+
 ## Backpropagation to Reaction–Diffusion Systems  
 *(Gray–Scott as an example)*
 
@@ -47,36 +77,3 @@ DOI: https://doi.org/10.5281/zenodo.17662717
 [2] Y. Yang, *Towards PDE-Structured Generative Modeling: Differentiable Simulators, Flow-Matching, and Pattern Manifolds (Proposal)*.  
 Zenodo, Dec. 11, 2025.  
 DOI: https://doi.org/10.5281/zenodo.17897116
-
-
-
----
-
-## How to use this code repo
-
-💡 Create and activate a virtual environment using Python 3.9, run
-```
-pip install -r requirements.txt
-```
----
-
-💡 To start exploring the parameter space of Gray Scott, run
-```
-python trainer.py
-```
-
----
-
-💡 To show animations of current parameters, use
-```
-python generate_targets.py 4
-```
-The parameters must be found in the output log of `python trainer.py`
-(even if you interrupt training) and manually set in the `generate_targets.py` file.
-
----
-
-💡 To plot pair-wise losses of a generated targets in `*.pt`, use
-```
-python within_target_loss.py
-```

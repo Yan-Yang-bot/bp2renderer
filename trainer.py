@@ -92,9 +92,9 @@ class Trainer:
         step the optimizer to get the new parameters,
         then trial forward (no grad) to see
         if current learning rate is viable (producing v without NaN/Inf/^[0,1]).
-        - i (Integer): index of the current lr value, logging purpose only
-        - shrink (Boolean): if this round shrink the lr (when False, amplify lr using `self.jump` instead)
-        - Return (Boolean): if current learning rate can be used in real forward.
+        - i (Integer): how many lr values are tried within the current iteration, logging purpose only
+        - shrink (Boolean): whether this trial uses shrunk lr (if False, it uses lr amplified with `self.jump` instead)
+        - Return (Boolean): whether current learning rate can be used in real forward.
         """
         print(f"Trying learning rate No.{i+1} {self.lrs_trial}...")
         self.gen.restore_params()
@@ -143,7 +143,6 @@ class Trainer:
 
         for it in trange(self.train_steps+1, desc="Training iters", leave=True):
             try:
-                # TODO: try moving this block to __init__ of Trainer.
                 with torch.no_grad():
                     # These things, a batch of initial state (u, v), sampled batch (same size) of target v and their
                     # power spectrum, are used in both the trial forward(s) and the real forward following.
@@ -164,24 +163,24 @@ class Trainer:
                     self.opt_state0 = copy.deepcopy(self.opt.state_dict())
                     self.gen.backup_params()
                     if debug_freq(it, print_more=1):
+                        '''
+                        Information Output Block
+                        '''
                         print("\033[36mGrads (last iteration's forward & backprop both done)\033[0m",
                               f"grad log_Du: {self.gen.log_Du.grad.abs().mean().item():.4e}",
                               f"grad log_Dv: {self.gen.log_Dv.grad.abs().mean().item():.4e}",
                               f"grad raw_F : {self.gen.raw_F.grad.abs().mean().item():.4e}",
                               f"grad raw_k : {self.gen.raw_k.grad.abs().mean().item():.4e}")
-
-                    #### debug ####
-                    max_v = 0.0
-                    max_name = None
-                    for n, p in self.gen.named_parameters():
-                        if p.requires_grad and p.grad is not None:
-                            v = p.grad.detach().abs().max().item()
-                            if v > max_v:
-                                max_v = v
-                                max_name = n
-                    print(f"[it {it}] max|grad|={max_v:.3e} at {max_name}, lr={self.opt.param_groups[0]['lr']:.3e},"
-                          f"lr*maxgrad={self.opt.param_groups[0]['lr']*max_v:.3e}")
-                    #### end ####
+                        max_v = 0.0
+                        max_name = None
+                        for n, p in self.gen.named_parameters():
+                            if p.requires_grad and p.grad is not None:
+                                v = p.grad.detach().abs().max().item()
+                                if v > max_v:
+                                    max_v = v
+                                    max_name = n
+                        print(f"[it {it}] max|grad|={max_v:.3e} at {max_name}, lr={self.opt.param_groups[0]['lr']:.3e},"
+                              f"lr*maxgrad={self.opt.param_groups[0]['lr']*max_v:.3e}")
 
                     print("\33[31mlr trials:\33[0m")
                     self.lrs_trial = self.lrs0
@@ -219,7 +218,6 @@ class Trainer:
                 # self.loss += alpha * ((v_pred - v_tgt) ** 2).mean()
                 print("real run steps taken:", steps_taken)
 
-                #### debug ####
                 if debug_freq(it, print_more=1):
                     '''
                     Information Output Block
@@ -237,7 +235,6 @@ class Trainer:
                             f"it={it:4d} loss={self.loss.item():.6f}",   # loss_total={self.loss_total.item():.6f}",
                             f"Du={p.Du.item():.4f} Dv={p.Dv.item():.4f} F={p.F.item():.4f} k={p.k.item():.4f}"
                         )
-                #### end ####
 
             except KeyboardInterrupt:
                 done = False
