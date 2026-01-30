@@ -77,7 +77,11 @@ class RDGenerator(nn.Module):
             # slice active samples only
             u_a = u.index_select(0, active_idx)
             v_a = v.index_select(0, active_idx)
-            u_next_a, v_next_a = n_steps(u_a, v_a, p, dt, n=1)
+            u_next_a, v_next_a, overflow = n_steps(u_a, v_a, p, dt, n=1)
+
+            if overflow:
+                steps_taken = t + 1
+                break
 
             newly_a = RDGenerator._per_sample_converged(u_next_a, v_next_a, u_a, v_a, tol)
             # write back updated states for active samples
@@ -113,9 +117,11 @@ class RDGenerator(nn.Module):
         dev = torch.device(device)
         u = u.to(dev)
         v = v.to(dev)
-        u, v, _, nstep = RDGenerator._simulate_until_converged(
+        u, v, converged, nstep = RDGenerator._simulate_until_converged(
             u=u, v=v, p=params, dt=dt, tol=tol, max_steps=max_steps
         )
+        if not torch.all(converged):
+            raise
         print(f"Generation finished - maximum {nstep} steps.")
 
         if return_uv:
@@ -151,18 +157,20 @@ class RDGenerator(nn.Module):
         #         u=u, v=v, dt=dt, tol=tol, max_steps=max_steps, disable_progress_bar=True
         #     )
         # TODO: Truncated BPTT is temporarily disabled, enable it (above commented code) when necessary.
-        u, v, _, steps_taken = self._simulate_until_converged(
+        u, v, converged, steps_taken = self._simulate_until_converged(
             u=u, v=v, p=p, dt=dt, tol=tol, max_steps=max_steps, disable_progress_bar=True
         )
+
+        overflow = not torch.all(converged)
 
         # Phase 2: truncated BPTT window with graph
         # TODO: Truncated BPTT is temporarily disabled, enable it (below detach code) when necessary.
         # u = u.detach()
         # v = v.detach()
-
-        u, v = n_steps(u, v, p, dt, K)
+        if not overflow:
+            u, v, overflow = n_steps(u, v, p, dt, K)
 
         if return_steps_taken:
-            return u, v, steps_taken
-        return u, v
+            return u, v, overflow, steps_taken
+        return u, v, overflow
 

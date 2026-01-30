@@ -59,7 +59,9 @@ if __name__ == "__main__":
         v_batch = RDGenerator.generate_gray_scott_target_batch(u, v, params=params, device=device, tol=1e-8, max_steps=50000)
     elif task == 'test training forward':
         gen = RDGenerator()
-        v_batch = gen.simulate_to_steady_trunc_bptt(u, v, device=device)[1]
+        v_batch, overflow = gen.simulate_to_steady_trunc_bptt(u, v, device=device)[1:3]
+        if overflow:
+            print("The output images may not be accurate. Values out of [0, 1] range during stepping.")
     elif task == 'show stored targets':
         v_batch = torch.load(target_pt_path, map_location=device)
     elif task == 'animation':

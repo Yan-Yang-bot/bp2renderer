@@ -108,7 +108,7 @@ class Trainer:
 
         with torch.no_grad():
             u_tmp, v_tmp = self.u_t.clone(), self.v_t.clone()
-            _, v_t_pred, t_steps_taken = self.gen.simulate_to_steady_trunc_bptt(
+            _, v_t_pred, overflow, t_steps_taken = self.gen.simulate_to_steady_trunc_bptt(
                 u=u_tmp, v=v_tmp,
                 dt=self.dt,
                 K=self.unroll_K,
@@ -122,7 +122,8 @@ class Trainer:
             _, _, ps_t_pred = power_spectrum_2d(v_t_pred, log=True)
             loss_check = F.mse_loss(ps_t_pred, self.ps_t_target)
 
-        ok = torch.isfinite(v_t_pred).all().item() and v_t_pred.min() >= 0 and v_t_pred.max() <= 1 and \
+        ok = not overflow and torch.isfinite(v_t_pred).all().item() and v_t_pred.min() >= 0 \
+            and v_t_pred.max() <= 1 and \
             torch.isfinite(ps_t_pred).all().item() and \
             torch.isfinite(loss_check).item()
         print(f"Trial forward done. Real forward will take {t_steps_taken} (maximum {self.max_steps}) "
@@ -200,7 +201,7 @@ class Trainer:
                 u, v = self.u_t, self.v_t
 
                 # differentiable forward (fixed K steps)
-                u_pred, v_pred, steps_taken = self.gen.simulate_to_steady_trunc_bptt(
+                u_pred, v_pred, overflow, steps_taken = self.gen.simulate_to_steady_trunc_bptt(
                     u=u, v=v,
                     dt=self.dt,
                     K=self.unroll_K,
@@ -209,6 +210,8 @@ class Trainer:
                     device=self.device,
                     return_steps_taken=True,
                 )
+
+                assert not overflow
 
                 energy, ps_mean, ps_pred = power_spectrum_2d(v_pred, log=True)   # [B,H,W]
 

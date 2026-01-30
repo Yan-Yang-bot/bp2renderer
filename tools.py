@@ -63,8 +63,9 @@ def n_steps(u: torch.Tensor, v: torch.Tensor, p: GSParams, dt: float, n: int):
     v_max, v_min = v2.amax(), v2.amin()
     if v_max > 1.0 or v_min < 0.0:
         print("Overflow:", v_min, v_max)
+        return u2, v2, True
 
-    return u2, v2
+    return u2, v2, False
 
 
 def debug_freq(it: int, print_more: int = 0) -> bool:

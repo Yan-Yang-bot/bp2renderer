@@ -40,7 +40,9 @@ def updatefig(frame_id: int, updates_per_frame: int, im, txt, u: torch.Tensor, v
     # print(p, dt)
 
     # update x times before updating the frame
-    u2, v2 = n_steps(u, v, p, dt, updates_per_frame)
+    u2, v2, overflow = n_steps(u, v, p, dt, updates_per_frame)
+    if overflow:
+        raise
 
     v_np = v2.cpu().numpy()
     im.set_array(v_np)
