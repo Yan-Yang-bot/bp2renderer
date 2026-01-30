@@ -164,7 +164,7 @@ class Trainer:
                     self.opt_state0 = copy.deepcopy(self.opt.state_dict())
                     self.gen.backup_params()
                     if debug_freq(it, print_more=1):
-                        print("\033[36mGrads (no backprop until later)\033[0m",
+                        print("\033[36mGrads (last iteration's forward & backprop both done)\033[0m",
                               f"grad log_Du: {self.gen.log_Du.grad.abs().mean().item():.4e}",
                               f"grad log_Dv: {self.gen.log_Dv.grad.abs().mean().item():.4e}",
                               f"grad raw_F : {self.gen.raw_F.grad.abs().mean().item():.4e}",
