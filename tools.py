@@ -3,6 +3,7 @@ import torch
 from dataclasses import dataclass
 from typing import Union
 
+
 @dataclass
 class GSParams:
     Du: Union[torch.Tensor, float] = 0.16

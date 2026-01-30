@@ -3,7 +3,6 @@ import os
 import copy
 from tqdm import trange
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
 from tools import GSParams, init_state_batch, debug_freq

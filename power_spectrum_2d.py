@@ -1,5 +1,6 @@
 import torch
 
+
 def power_spectrum_2d(x: torch.Tensor, eps: float = 1e-8, log: bool = True) -> torch.Tensor:
     """
     x: [B,1,H,W] or [B,H,W]
