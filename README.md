@@ -1,13 +1,16 @@
 ## How to use this code repo
 
-💡 Make sure your device (CPU/GPU) uses float64 instead of float32.
-
----
-
 💡 Create and activate a virtual environment using Python 3.9, run
 ```
 pip install -r requirements.txt
 ```
+---
+
+💡 Make sure your device (CPU/GPU) uses float64 instead of float32:
+```
+python check_float64.py
+```
+
 ---
 
 💡 To start exploring the parameter space of Gray Scott, run
