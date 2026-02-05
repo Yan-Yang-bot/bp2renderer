@@ -48,9 +48,14 @@ if __name__ == "__main__":
         device = torch.device("cuda")
     else:
         device = torch.device("cpu")
-    #params = GSParams(Du=0.1270, Dv=0.1269, F=0.0500, k=0.0501)
-    params = GSParams(Du=0.1341, Dv=0.1198, F=0.0477, k=0.0580)
-    #params = GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065)
+    params = [
+        GSParams(Du=0.1270, Dv=0.1269, F=0.0500, k=0.0501),
+        GSParams(Du=0.1342671811580658, Dv=0.06791425496339798, F=0.042939864099025726, k=0.06534779816865921),
+        GSParams(Du=0.1321, Dv=0.0691, F=0.0429, k=0.0659),
+        GSParams(Du=0.1240, Dv=0.0751, F=0.0444, k=0.0718),
+        GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065),
+    ]
+    # params = GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065)
     print('parameters generated.')
 
     print('Generating...')
@@ -65,11 +70,18 @@ if __name__ == "__main__":
     elif task == 'show stored targets':
         v_batch = torch.load(target_pt_path, map_location=device)
     elif task == 'animation':
-        u, v = u[0].squeeze(0), v[0].squeeze(0)
-        fig, im, txt = get_initial_artists(v.cpu().numpy())
-        updates_per_frame = 4
+        if type(params) is list:
+            l = len(params)
+            repeat = [(l-1) // 4 + 1, 1, 1, 1]
+            u_animation = [u_item.squeeze(0) for u_item in u.repeat(repeat)[:l]]
+            v_animation = [v_item.squeeze(0) for v_item in v.repeat(repeat)[:l]]
+        else:
+            u_animation, v_animation = u[0].squeeze(0), v[0].squeeze(0)
+
+        fig, im, txt = get_initial_artists(v_animation)
+        updates_per_frame = 5
         dt = 1.0
-        animation_arguments = (updates_per_frame, im, txt, u, v, params, dt)
+        animation_arguments = (updates_per_frame, im, txt, u_animation, v_animation, params, dt)
         ani = animation.FuncAnimation(fig,  # matplotlib figure
                                       updatefig,  # function that takes care of the update
                                       fargs=animation_arguments,  # arguments to pass to this function

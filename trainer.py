@@ -39,7 +39,7 @@ class Trainer:
         self.alpha = 0.0
         self.grad_clip = None
         self.batch_sim = 8
-        self.init_lr = 1.2e-2
+        self.init_lr = 1e-3
         self.weight_decay = 5e-4
         # simulation hyperparams
         self.dt = 1.0
@@ -54,6 +54,7 @@ class Trainer:
         self.B_targets = 512
         self.H = 128
         self.W = 128
+        self.target_tol = 1e-4
         self.true_params = GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065)
 
     def make_targets(self):
@@ -78,7 +79,7 @@ class Trainer:
             v_targets = RDGenerator.generate_gray_scott_target_batch(
                 u=u_t0, v=v_t0, dt=self.dt,
                 params=self.true_params, device=self.device,
-                max_steps=40000, tol=1e-4, return_uv=False
+                max_steps=self.max_steps, tol=self.target_tol, return_uv=False
             ).detach()  # [B_targets,1,H,W]
             torch.save(v_targets.cpu(), target_pt_path)
             print(f"Target patterns generated and saved to {target_pt_path}")
@@ -180,7 +181,7 @@ class Trainer:
                                     max_v = v
                                     max_name = n
                         print(f"[it {it}] max|grad|={max_v:.3e} at {max_name}, lr={self.opt.param_groups[0]['lr']:.3e},"
-                              f"lr*maxgrad={self.opt.param_groups[0]['lr']*max_v:.3e}")
+                              f" lr*maxgrad={self.opt.param_groups[0]['lr']*max_v:.3e}")
 
                     print("\33[31mlr trials:\33[0m")
                     self.lrs_trial = self.lrs0
@@ -216,7 +217,7 @@ class Trainer:
 
                 self.loss = F.mse_loss(ps_pred, self.ps_t_target)
                 # self.loss += alpha * ((v_pred - v_tgt) ** 2).mean()
-                print("real run steps taken:", steps_taken)
+                print("real run steps taken:", steps_taken, f" + {self.unroll_K}")
 
                 if debug_freq(it, print_more=1):
                     '''
@@ -253,10 +254,9 @@ class Trainer:
                   "Dv=", float(p.Dv.cpu()),
                   "F=", float(p.F.cpu()),
                   "k=", float(p.k.cpu()))
-            if not done:
-                print(f"To restore training, use parameters "
-                      f"log_Du={self.gen.log_Du.item()}, log_Dv={self.gen.log_Dv.item()},"
-                      f"raw_F={self.gen.raw_F.item()}, raw_k={self.gen.raw_k.item()}.")
+            print(f"To restore training, use parameters "
+                  f"log_Du={self.gen.log_Du.item()}, log_Dv={self.gen.log_Dv.item()},"
+                  f"raw_F={self.gen.raw_F.item()}, raw_k={self.gen.raw_k.item()}.")
 
     def test(self):
         pass

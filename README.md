@@ -1,5 +1,9 @@
 ## How to use this code repo
 
+💡 Make sure your device (CPU/GPU) uses float64 instead of float32.
+
+---
+
 💡 Create and activate a virtual environment using Python 3.9, run
 ```
 pip install -r requirements.txt
@@ -14,7 +18,7 @@ There is a target generation stage the first time you run it, but the targets wi
 
 ---
 
-💡 If you're not satisfied with just log information, copy the logged parameters into `generate_targets.py` and use the following to show stepping animations using such parameters:
+💡 If you're not satisfied with just log information, copy the logged parameters into `generate_targets.py` and use the following to show stepping animations using such parameters (a list of multiple parameters from a parameter search trajectory can be used for simultaneous animation, so that you can see where the optimizer is going):
 ```
 python generate_targets.py 4
 ```

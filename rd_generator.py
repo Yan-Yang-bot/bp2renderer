@@ -11,14 +11,14 @@ from tools import GSParams, n_steps
 class RDGenerator(nn.Module):
     def __init__(self, max_Fk: float = 0.1, init_logD: float = -2.0):
         super().__init__()
-        self.log_Du = nn.Parameter(torch.tensor(init_logD))
-        self.log_Dv = nn.Parameter(torch.tensor(init_logD))
-        self.raw_F  = nn.Parameter(torch.tensor(0.0))
-        self.raw_k  = nn.Parameter(torch.tensor(0.0))
+        self.log_Du = nn.Parameter(torch.tensor(-1.986888458877057))  #init_logD))
+        self.log_Dv = nn.Parameter(torch.tensor(-2.5749068717725434))  #init_logD))
+        self.raw_F  = nn.Parameter(torch.tensor(-0.2859322907279933))  #0.0))
+        self.raw_k  = nn.Parameter(torch.tensor(0.762978275063285))  #0.0))
         self.max_Fk = float(max_Fk)
         self.backup = {n: p.detach().clone() for n, p in self.named_parameters() if p.requires_grad}
 
-    def backup_params(self): # always overwrite
+    def backup_params(self):  # always overwrite
         self.backup = {n: p.detach().clone() for n, p in self.named_parameters() if p.requires_grad}
 
     def restore_params(self):
@@ -121,7 +121,8 @@ class RDGenerator(nn.Module):
             u=u, v=v, p=params, dt=dt, tol=tol, max_steps=max_steps
         )
         if not torch.all(converged):
-            raise
+            raise ValueError(f"Your parameters {params} led to NaN/Inf "
+                             f"or physically non-meaningful values (outside [0,1]).")
         print(f"Generation finished - maximum {nstep} steps.")
 
         if return_uv:
@@ -143,8 +144,8 @@ class RDGenerator(nn.Module):
         return_steps_taken: bool = True,
     ):
         """
-        输入 u,v，先 no_grad 跑到稳态（每样本独立停+freeze），
-        再 detach 状态，最后 K 步带图，反传到参数。
+        Input u,v，run with no_grad until almost converge (each sample's convergence judged independently)
+        Then detach and run K steps with grad that later backpropagate to parameters.
         """
         dev = torch.device(device)
         u = u.to(dev)
@@ -153,22 +154,25 @@ class RDGenerator(nn.Module):
         # Phase 1: run-to-steady without graph
         p = self.params_tensor()
         # with torch.no_grad():
-        #     u, v, _, steps_taken = self._simulate_until_converged(
-        #         u=u, v=v, dt=dt, tol=tol, max_steps=max_steps, disable_progress_bar=True
+        #     u, v, converged, steps_taken = self._simulate_until_converged(
+        #         u=u, v=v, p=p, dt=dt, tol=tol, max_steps=max_steps, disable_progress_bar=True
         #     )
-        # TODO: Truncated BPTT is temporarily disabled, enable it (above commented code) when necessary.
+        # TODO: Truncated BPTT is temporarily disabled, using full BPTT now.
+        #  Enable it (above commented code) when necessary.
         u, v, converged, steps_taken = self._simulate_until_converged(
             u=u, v=v, p=p, dt=dt, tol=tol, max_steps=max_steps, disable_progress_bar=True
         )
 
-        overflow = not torch.all(converged)
+        overflow_early = not torch.all(converged)
 
         # Phase 2: truncated BPTT window with graph
-        # TODO: Truncated BPTT is temporarily disabled, enable it (below detach code) when necessary.
+        # TODO: Truncated BPTT is temporarily disabled, using full BPTT now.
+        #  Enable it (below detach code) when necessary.
         # u = u.detach()
         # v = v.detach()
-        if not overflow:
-            u, v, overflow = n_steps(u, v, p, dt, K)
+        u, v, overflow_late = n_steps(u, v, p, dt, K)
+
+        overflow = overflow_early or overflow_late
 
         if return_steps_taken:
             return u, v, overflow, steps_taken
