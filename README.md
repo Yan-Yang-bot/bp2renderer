@@ -95,11 +95,27 @@ Animations from left to right:
 
 No.1 - Initial parameters Du=0.1270, Dv=0.1269, F=0.0500, k=0.0501.
 
-No.2 - Trained the model using L2 loss on 2d power spectrums and learning rate 1.2e-2 for 8918 iterations,
+No.2 - Initial training (using L2 loss on 2d power spectrum + learning rate 1.2e-2 + 8918 iterations),
 now Du=0.1285, Dv=0.0734, F=0.0429, k=0.0682.
 
-No.3 - Continued training using L2 loss on 2d power spectrums and learning rate 1e-3 for 97 iterations,
+No.3 - Continued training after reaching No.2 (using L2 loss on 2d power spectrum + learning rate 1e-3 + 97 iterations),
 now Du=0.1343, Dv=0.0679, F=0.0429, k=0.0653.
 
+* So we have optimizer trajectory: No.1 -> No.2 -> No.3.
+
 No.4 - Target animation with Du=0.16, Dv=0.08, F=0.035, k=0.065.
-[![Watch the video](./gray_scott.gif)](./gray_scott.mp4)
+
+[![Watch the video](media/gray_scott.gif)](media/gray_scott.mp4)
+
+Limitations:
+
+- The generation mechanism of initial states (with limited randomness) is shared between target and training.
+- Where to stop training had to be decided manually, because loss value almost constantly remained between 245.0~270.0,
+very rarely showing a few under 20.0, providing limited information.
+The stable states of the parameter sets at "under-twenty losses" are like the following:
+
+<img src="media/four_dots.png" width="20%" height="20%">
+
+
+The author is continuing the exploration.
+
