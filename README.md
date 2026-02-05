@@ -1,3 +1,8 @@
+# Backpropagation to Reaction–Diffusion Systems
+*(Gray–Scott as an example)*
+
+---
+
 ## How to use this code repo
 
 💡 Create and activate a virtual environment using Python 3.9, run
@@ -35,8 +40,22 @@ python within_target_loss.py
 
 ---
 
-## Backpropagation to Reaction–Diffusion Systems  
-*(Gray–Scott as an example)*
+## How This is Different from PINN
+
+As I understand them, PINNs primarily adapt the model representation by incorporating physical constraints into the loss function, while still relying on standard backpropagation-based optimizers. (The field is moving fast, and I may be behind on newer variants.)
+
+My idea is almost the opposite.
+Instead of reshaping the PDE/ODE into a neural-network-like form, I try to keep the original dynamical system intact and experiment with modifying or customizing the optimizer itself, performing backward propagation directly through the PDE/ODE to search for parameters whose stable outcomes are closest to a target pattern.
+
+At the moment, I’m honestly not sure whether one can design an optimizer strategy that is capable of traversing a highly rugged dynamical-system parameter landscape and reliably reaching such target parameter sets. Even if the resulting strategy ends up looking quite different from standard backpropagation, that would still be acceptable to me.
+
+The viability question must be somehow discussed before I proceed. My background in dynamical systems is limited, and ChatGPT tends to respond optimistically regardless of feasibility.
+
+The original motivation was to connect pattern-generating systems like Gray–Scott with downstream tasks in an end-to-end differentiable pipeline. I also have the intuition that, in terms of information flow, direct backpropagation is more efficient than alternative indirect approaches, which is why I started thinking along this direction in the first place.
+
+---
+
+## Project Description
 
 This repository contains **early experimental code** on **gradient-based parameter learning in reaction–diffusion systems**, using the Gray–Scott model.
 
@@ -89,7 +108,7 @@ DOI: https://doi.org/10.5281/zenodo.17897116
 
 ---
 
-## Experiment Result (Temporary)
+## Experiment Result (Preliminary)
 
 Animations from left to right:
 
