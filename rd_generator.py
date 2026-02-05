@@ -1,20 +1,30 @@
 # rd_generator.py
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Union
+from typing import Union, Optional
 from tqdm import trange
 
-from tools import GSParams, n_steps
+from tools import GSParams, n_steps, py_float64
 
 
 class RDGenerator(nn.Module):
-    def __init__(self, max_Fk: float = 0.1, init_logD: float = -2.0):
+    def __init__(self, params: Optional[GSParams] = None, max_Fk: float = 0.1, init_logD: float = -2.0):
         super().__init__()
-        self.log_Du = nn.Parameter(torch.tensor(-1.986888458877057))  #init_logD))
-        self.log_Dv = nn.Parameter(torch.tensor(-2.5749068717725434))  #init_logD))
-        self.raw_F  = nn.Parameter(torch.tensor(-0.2859322907279933))  #0.0))
-        self.raw_k  = nn.Parameter(torch.tensor(0.762978275063285))  #0.0))
+        if params is not None:
+            init_logDu = math.log(math.exp(py_float64(params.Du)) - 1)
+            init_logDv = math.log(math.exp(py_float64(params.Dv)) - 1)
+            raw_F = math.log(py_float64(params.F) / (0.1 - py_float64(params.F)))
+            raw_k = math.log(py_float64(params.k) / (0.1 - py_float64(params.k)))
+            print(init_logDu, init_logDv, raw_F, raw_k)
+        else:
+            init_logDu = init_logDv = init_logD
+            raw_F = raw_k = 0.0
+        self.log_Du = nn.Parameter(torch.tensor(init_logDu))
+        self.log_Dv = nn.Parameter(torch.tensor(init_logDv))
+        self.raw_F  = nn.Parameter(torch.tensor(raw_F))
+        self.raw_k  = nn.Parameter(torch.tensor(raw_k))
         self.max_Fk = float(max_Fk)
         self.backup = {n: p.detach().clone() for n, p in self.named_parameters() if p.requires_grad}
 

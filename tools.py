@@ -11,6 +11,10 @@ class GSParams:
     F:  Union[torch.Tensor, float] = 0.035
     k:  Union[torch.Tensor, float] = 0.065
 
+    def __str__(self):
+        p = py_float64(self)
+        return f"Du={p.Du:.4f}, Dv={p.Dv:.4f}, F={p.F:.4f}, k={p.k:.4f}"
+
 
 def laplacian_periodic(x: torch.Tensor) -> torch.Tensor:
     return (
@@ -74,3 +78,14 @@ def debug_freq(it: int, print_more: int = 0) -> bool:
         it > 200 and it % 10 == 0 or \
         it > 300
     return it != 0 and ((p or it % print_more == 0) if print_more else p)
+
+
+def py_float64(item: Union[GSParams, torch.Tensor, float]):
+    if type(item) is GSParams:
+        return GSParams(
+            Du=py_float64(item.Du),
+            Dv=py_float64(item.Dv),
+            F=py_float64(item.F),
+            k=py_float64(item.k)
+        )
+    return item.double() if hasattr(item, "double") else item

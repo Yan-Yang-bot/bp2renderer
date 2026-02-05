@@ -42,6 +42,8 @@ task = 'test training forward' if task_id == 2 else \
        'animation' if task_id == 4 else ''
 print(f"Current task: {task}")
 
+save_animation = False
+
 
 if __name__ == "__main__":
     if torch.cuda.is_available():
@@ -49,10 +51,13 @@ if __name__ == "__main__":
     else:
         device = torch.device("cpu")
     params = [
+        # Initial params
         GSParams(Du=0.1270, Dv=0.1269, F=0.0500, k=0.0501),
+        # At iter 8918 of lr=1.2e-2 - disappears faster
+        GSParams(Du=0.1285, Dv=0.0734, F=0.0429, k=0.0682),
+        # iter 97, 381 after switching to lr=1e-3
         GSParams(Du=0.1342671811580658, Dv=0.06791425496339798, F=0.042939864099025726, k=0.06534779816865921),
-        GSParams(Du=0.1321, Dv=0.0691, F=0.0429, k=0.0659),
-        GSParams(Du=0.1240, Dv=0.0751, F=0.0444, k=0.0718),
+        # True params
         GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065),
     ]
     # params = GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065)
@@ -86,9 +91,18 @@ if __name__ == "__main__":
                                       updatefig,  # function that takes care of the update
                                       fargs=animation_arguments,  # arguments to pass to this function
                                       interval=1,  # update every `interval` milliseconds
-                                      frames=50000,
+                                      frames=18000,
                                       blit=False,  # optimize the drawing update
                                       )
+        if save_animation:
+            print("Saving animation...")
+            ani.save(
+                "gray_scott.mp4",
+                writer="ffmpeg",
+                fps=30,
+                dpi=150
+            )
+            print("Saved to gray_scott.mp4")
         # show the animation
         plt.show()
         exit(0)

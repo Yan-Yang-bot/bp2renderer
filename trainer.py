@@ -5,7 +5,7 @@ from tqdm import trange
 import torch
 import torch.nn.functional as F
 
-from tools import GSParams, init_state_batch, debug_freq
+from tools import GSParams, init_state_batch, debug_freq, py_float64
 from power_spectrum_2d import power_spectrum_2d
 from rd_generator import RDGenerator
 
@@ -23,7 +23,9 @@ def load_lr(opt, lrs):
 class Trainer:
     def __init__(self):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        # self.gen = RDGenerator(GSParams(Du=0.1327, Dv=0.0710, F=0.0426, k=0.0661)).to(self.device)
         self.gen = RDGenerator().to(self.device)
+        print(py_float64(self.gen.params_tensor()))
         self.set_default_hyperparams()
         self.loss = None
         self.opt_state0 = None
@@ -105,7 +107,7 @@ class Trainer:
         self.opt.step()
         print("Parameters updated:")
         p = self.gen.params_tensor()
-        print(f"Du={p.Du.item():.4f} Dv={p.Dv.item():.4f} F={p.F.item():.4f} k={p.k.item():.4f}")
+        print("Initial parameters:", p)
 
         with torch.no_grad():
             u_tmp, v_tmp = self.u_t.clone(), self.v_t.clone()
@@ -149,8 +151,8 @@ class Trainer:
                     # power spectrum, are used in both the trial forward(s) and the real forward following.
                     self.u_t, self.v_t = init_state_batch(self.batch_sim, self.H, self.W, device=self.device)
                     target_idx_t = torch.randint(0, self.B_targets, (self.batch_sim,), device=self.device)
-                    v_t_target = self.v_targets[target_idx_t]
-                    _, _, self.ps_t_target = power_spectrum_2d(v_t_target, log=True)
+                    self.v_t_target = self.v_targets[target_idx_t]
+                    _, _, self.ps_t_target = power_spectrum_2d(self.v_t_target, log=True)
 
                 # To make the trial and real forwards use same elements, we first backprop with the previous trial
                 # forward, and make the real forward afterward.
@@ -216,7 +218,7 @@ class Trainer:
                 energy, ps_mean, ps_pred = power_spectrum_2d(v_pred, log=True)   # [B,H,W]
 
                 self.loss = F.mse_loss(ps_pred, self.ps_t_target)
-                # self.loss += alpha * ((v_pred - v_tgt) ** 2).mean()
+                # self.loss = (1 - self.alpha) * loss_ps + self.alpha * ((v_pred - self.v_t_target) ** 2).mean()
                 print("real run steps taken:", steps_taken, f" + {self.unroll_K}")
 
                 if debug_freq(it, print_more=1):

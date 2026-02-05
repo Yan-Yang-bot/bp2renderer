@@ -18,7 +18,7 @@ def get_initial_artists(v: Union[torch.Tensor, list]):
     if type(v) is list:
         l = len(v)
         assert l > 0
-        w, h = 3, (l - 1) // 3 + 1
+        w, h = 4, (l - 1) // 4 + 1
         fig, axes = plt.subplots(h, w, figsize=(4*w, 4*h))
         im_list = []
         for idx, ax in enumerate(axes.flatten()):

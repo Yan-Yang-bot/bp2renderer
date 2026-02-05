@@ -86,3 +86,20 @@ DOI: https://doi.org/10.5281/zenodo.17662717
 [2] Y. Yang, *Towards PDE-Structured Generative Modeling: Differentiable Simulators, Flow-Matching, and Pattern Manifolds (Proposal)*.  
 Zenodo, Dec. 11, 2025.  
 DOI: https://doi.org/10.5281/zenodo.17897116
+
+---
+
+## Experiment Result (Temporary)
+
+Animations from left to right:
+
+No.1 - Initial parameters Du=0.1270, Dv=0.1269, F=0.0500, k=0.0501.
+
+No.2 - Trained the model using L2 loss on 2d power spectrums and learning rate 1.2e-2 for 8918 iterations,
+now Du=0.1285, Dv=0.0734, F=0.0429, k=0.0682.
+
+No.3 - Continued training using L2 loss on 2d power spectrums and learning rate 1e-3 for 97 iterations,
+now Du=0.1343, Dv=0.0679, F=0.0429, k=0.0653.
+
+No.4 - Target animation with Du=0.16, Dv=0.08, F=0.035, k=0.065.
+[![Watch the video](./gray_scott.gif)](./gray_scott.mp4)
