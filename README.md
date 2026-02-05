@@ -40,7 +40,7 @@ python within_target_loss.py
 
 This repository contains **early experimental code** on **gradient-based parameter learning in reaction–diffusion systems**, using the Gray–Scott model.
 
-It implements a **preliminary truncated BPTT** scheme through unrolled RD simulations, following ideas from my Zenodo technical note [1]. The goal is to probe **numerical stability and gradient behavior** when backpropagating through time-stepped PDEs, without downstream tasks.
+It implements a **preliminary truncated BPTT** scheme through unrolled Gray-Scott simulations, following part of the ideas from my Zenodo technical note [1]. The goal is to probe **numerical stability and gradient behavior** when backpropagating through time-stepped PDEs, without downstream tasks.
 
 Other useful components include:
 
@@ -48,9 +48,11 @@ Other useful components include:
 
 - an embedded animation tool
 
-    -- visualizing forward simulation steps for any parameter set along the learning trajectory,
+    -- visualizing simulation steps for any parameter set along the learning trajectory,
 
     -- ensuring that its output is identical with what produced during training.
+
+    -- visualizing simulation steps for multiple parameter sets (e.g., from the same trajectory) to investigate a trajectory.
 
 **Next step:** the author will **systematically discuss how gradient-based optimizers can traverse different regions of the Gray–Scott parameter space**, including:
 
