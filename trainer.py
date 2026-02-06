@@ -25,7 +25,7 @@ class Trainer:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         # self.gen = RDGenerator(GSParams(Du=0.1327, Dv=0.0710, F=0.0426, k=0.0661)).to(self.device)
         self.gen = RDGenerator().to(self.device)
-        print(py_float64(self.gen.params_tensor()))
+        print("Initial parameters:", py_float64(self.gen.params_tensor()))
         self.set_default_hyperparams()
         self.loss = None
         self.opt_state0 = None
@@ -107,7 +107,7 @@ class Trainer:
         self.opt.step()
         print("Parameters updated:")
         p = self.gen.params_tensor()
-        print("Initial parameters:", p)
+        print(p)
 
         with torch.no_grad():
             u_tmp, v_tmp = self.u_t.clone(), self.v_t.clone()
@@ -235,8 +235,7 @@ class Trainer:
                     with torch.no_grad():
                         p = self.gen.params_tensor()
                         print(
-                            f"it={it:4d} loss={self.loss.item():.6f}",   # loss_total={self.loss_total.item():.6f}",
-                            f"Du={p.Du.item():.4f} Dv={p.Dv.item():.4f} F={p.F.item():.4f} k={p.k.item():.4f}"
+                            f"it={it:4d} loss={self.loss.item():.6f}", p  # loss_total={self.loss_total.item():.6f}",
                         )
 
             except KeyboardInterrupt:
