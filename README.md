@@ -133,7 +133,9 @@ Limitations:
 very rarely showing a few under 20.0, providing limited information.
 The stable states of the parameter sets at "under-twenty losses" are like the following:
 
-<img src="media/four_dots.png" width="20%" height="20%">
+<div style="width:150px; height:150px; border: 1px solid">
+<img src="media/four_dots.png" width="150px" height="150px" style="border: 1px solid">
+</div>
 
 
 The author is continuing the exploration.
