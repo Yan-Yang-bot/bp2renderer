@@ -105,9 +105,9 @@ class Trainer:
         load_lr(self.opt, self.lrs_trial)
 
         self.opt.step()
-        print("Parameters updated:")
+        print("\033[36mParameters updated:")
         p = self.gen.params_tensor()
-        print(p)
+        print(p, "\033[0m")
 
         with torch.no_grad():
             u_tmp, v_tmp = self.u_t.clone(), self.v_t.clone()
@@ -169,7 +169,7 @@ class Trainer:
                         '''
                         Information Output Block
                         '''
-                        print("\033[36mGrads (last iteration's forward & backprop both done)\033[0m",
+                        print(f"[it={it}] \033[36mGrads (last iteration's forward & backprop both done)\033[0m",
                               f"grad log_Du: {self.gen.log_Du.grad.abs().mean().item():.4e}",
                               f"grad log_Dv: {self.gen.log_Dv.grad.abs().mean().item():.4e}",
                               f"grad raw_F : {self.gen.raw_F.grad.abs().mean().item():.4e}",
@@ -182,7 +182,7 @@ class Trainer:
                                 if v > max_v:
                                     max_v = v
                                     max_name = n
-                        print(f"[it {it}] max|grad|={max_v:.3e} at {max_name}, lr={self.opt.param_groups[0]['lr']:.3e},"
+                        print(f"max|grad|={max_v:.3e} at {max_name}, lr={self.opt.param_groups[0]['lr']:.3e},"
                               f" lr*maxgrad={self.opt.param_groups[0]['lr']*max_v:.3e}")
 
                     print("\33[31mlr trials:\33[0m")
@@ -198,7 +198,7 @@ class Trainer:
                         else:
                             raise ValueError("All lrs failed with NaN.")
 
-                    print("\n\33[31mEnd lr trials.\33[0m")
+                    print("\33[31mEnd lr trials.\33[0m")
 
                 u, v = self.u_t, self.v_t
 
@@ -226,7 +226,7 @@ class Trainer:
                     Information Output Block
                     '''
                     pred_std = v_pred.std(dim=(-2, -1))
-                    print(f"\n\n\033[32mPrediction v's std: min {pred_std.min().item():.04e}, median {pred_std.median().item():.04e}, max {pred_std.max().item():.04e}")
+                    print(f"\033[32mPrediction v's std: min {pred_std.min().item():.04e}, median {pred_std.median().item():.04e}, max {pred_std.max().item():.04e}")
                     print(f"Power spectrum mean: {energy.item():.4e} (with log: {ps_mean:.4e})\033[0m\n")
 
                     g_v = torch.autograd.grad(self.loss, v_pred, retain_graph=True, allow_unused=True)[0]
@@ -235,7 +235,9 @@ class Trainer:
                     with torch.no_grad():
                         p = self.gen.params_tensor()
                         print(
-                            f"it={it:4d} loss={self.loss.item():.6f}", p  # loss_total={self.loss_total.item():.6f}",
+                            f"[it={it} (end)] loss={self.loss.item():.6f} after forward, "
+                            f"\033[36mparams before backward/update:", p, "\033[0m\n\n"
+                            # loss_total={self.loss_total.item():.6f}",
                         )
 
             except KeyboardInterrupt:
