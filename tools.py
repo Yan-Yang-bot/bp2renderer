@@ -61,8 +61,9 @@ def _gray_scott_step(u: torch.Tensor, v: torch.Tensor, p: GSParams, dt: float):
 
 
 def n_steps(u: torch.Tensor, v: torch.Tensor, p: GSParams, dt: float, n: int):
+    u2, v2 = u.clone(), v.clone()
     for _ in range(n):
-        u2, v2 = _gray_scott_step(u, v, p, dt)
+        u2, v2 = _gray_scott_step(u2, v2, p, dt)
 
     v_max, v_min = v2.amax(), v2.amin()
     if v_max > 1.0 or v_min < 0.0:
