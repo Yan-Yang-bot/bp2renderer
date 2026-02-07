@@ -177,12 +177,12 @@ class RDGenerator(nn.Module):
 
         # Phase 2: truncated BPTT window with graph
         # TODO: Truncated BPTT is temporarily disabled, using full BPTT now.
-        #  Enable it (below detach code) when necessary.
+        #  Enable it (below detach & extra steps code, and increase tol passed into here) when necessary.
         # u = u.detach()
         # v = v.detach()
-        u, v, overflow_late = n_steps(u, v, p, dt, K)
+        # u, v, overflow_late = n_steps(u, v, p, dt, K)
 
-        overflow = overflow_early or overflow_late
+        overflow = overflow_early #or overflow_late
 
         if return_steps_taken:
             return u, v, overflow, steps_taken
