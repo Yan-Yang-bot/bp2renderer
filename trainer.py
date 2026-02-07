@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 
 from tools import GSParams, init_state_batch, debug_freq, py_float64
-from power_spectrum_2d import power_spectrum_2d
+from power_spectrum_2d import power_spectrum_2d_windowed
 from rd_generator import RDGenerator
 
 
@@ -41,7 +41,7 @@ class Trainer:
         self.alpha = 0.0
         self.grad_clip = None
         self.batch_sim = 8
-        self.init_lr = 1e-3
+        self.init_lr = 1e-4
         self.weight_decay = 5e-4
         # simulation hyperparams
         self.dt = 1.0
@@ -122,7 +122,7 @@ class Trainer:
             )
             del u_tmp, v_tmp
             torch.cuda.empty_cache()
-            _, _, ps_t_pred = power_spectrum_2d(v_t_pred, log=True)
+            _, _, ps_t_pred = power_spectrum_2d_windowed(v_t_pred, log=True)
             loss_check = F.mse_loss(ps_t_pred, self.ps_t_target)
 
         ok = not overflow and torch.isfinite(v_t_pred).all().item() and v_t_pred.min() >= 0 \
@@ -152,7 +152,7 @@ class Trainer:
                     self.u_t, self.v_t = init_state_batch(self.batch_sim, self.H, self.W, device=self.device)
                     target_idx_t = torch.randint(0, self.B_targets, (self.batch_sim,), device=self.device)
                     self.v_t_target = self.v_targets[target_idx_t]
-                    _, _, self.ps_t_target = power_spectrum_2d(self.v_t_target, log=True)
+                    _, _, self.ps_t_target = power_spectrum_2d_windowed(self.v_t_target, log=True)
 
                 # To make the trial and real forwards use same elements, we first backprop with the previous trial
                 # forward, and make the real forward afterward.
@@ -215,7 +215,7 @@ class Trainer:
 
                 assert not overflow
 
-                energy, ps_mean, ps_pred = power_spectrum_2d(v_pred, log=True)   # [B,H,W]
+                energy, ps_mean, ps_pred = power_spectrum_2d_windowed(v_pred, log=True)   # [B,H,W]
 
                 self.loss = F.mse_loss(ps_pred, self.ps_t_target)
                 # self.loss = (1 - self.alpha) * loss_ps + self.alpha * ((v_pred - self.v_t_target) ** 2).mean()
