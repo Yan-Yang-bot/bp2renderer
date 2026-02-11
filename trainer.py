@@ -22,11 +22,11 @@ def load_lr(opt, lrs):
 
 class Trainer:
     def __init__(self):
+        self.set_default_hyperparams()
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         # self.gen = RDGenerator(GSParams(Du=0.1327, Dv=0.0710, F=0.0426, k=0.0661)).to(self.device)
         self.gen = RDGenerator().to(self.device)
         print("Initial parameters:", py_float64(self.gen.params_tensor()))
-        self.set_default_hyperparams()
         self.loss = None
         self.opt_state0 = None
         # TODO: wrap the adaptive-lr opt in a class.
@@ -88,60 +88,61 @@ class Trainer:
 
         return v_targets
 
-    def step_and_trial(self, i, shrink=True):
-        """
-        Restore the starting point of all trials of this iteration,
-        shrink or amplify learning rate,
-        step the optimizer to get the new parameters,
-        then trial forward (no grad) to see
-        if current learning rate is viable (producing v without NaN/Inf/^[0,1]).
-        - i (Integer): how many lr values are tried within the current iteration, logging purpose only
-        - shrink (Boolean): whether this trial uses shrunk lr (if False, it uses lr amplified with `self.jump` instead)
-        - Return (Boolean): whether current learning rate can be used in real forward.
-        """
-        print(f"Trying learning rate No.{i+1} {self.lrs_trial}...")
-        self.gen.restore_params()
-        self.opt.load_state_dict(copy.deepcopy(self.opt_state0))
-        load_lr(self.opt, self.lrs_trial)
-
-        self.opt.step()
-        print("\033[36mParameters updated:")
-        p = self.gen.params_tensor()
-        print(p, "\033[0m")
-
-        with torch.no_grad():
-            u_tmp, v_tmp = self.u_t.clone(), self.v_t.clone()
-            _, v_t_pred, overflow, t_steps_taken = self.gen.simulate_to_steady_trunc_bptt(
-                u=u_tmp, v=v_tmp,
-                dt=self.dt,
-                K=self.unroll_K,
-                tol=self.tol,
-                max_steps=self.max_steps,
-                device=self.device,
-                return_steps_taken=True
-            )
-            del u_tmp, v_tmp
-            torch.cuda.empty_cache()
-            _, _, ps_t_pred = power_spectrum_2d_windowed(v_t_pred, log=True)
-            loss_check = F.mse_loss(ps_t_pred, self.ps_t_target)
-
-        ok = not overflow and torch.isfinite(v_t_pred).all().item() and v_t_pred.min() >= 0 \
-            and v_t_pred.max() <= 1 and \
-            torch.isfinite(ps_t_pred).all().item() and \
-            torch.isfinite(loss_check).item()
-        print(f"Trial forward done. Real forward will take {t_steps_taken} (maximum {self.max_steps}) "
-              f"steps without grad + {self.unroll_K} steps with grad to converge.")
-        print("All finite and in [0,1]?", ok)
-        if ok:
-            return True
-        else:
-            print(f"Done trying No.{i + 1} {self.lrs_trial}.")
-            scale_lr(self.opt, self.shrink if shrink else self.jump)
-            self.lrs_trial = [g["lr"] for g in self.opt.param_groups]
-            print("After scale, next round lr:", self.lrs_trial, "\n")
-            return False
-
     def train(self):
+
+        def step_and_trial(idx, shrink=True):
+            """
+            Restore the starting point of all trials of this iteration,
+            shrink or amplify learning rate,
+            step the optimizer to get the new parameters,
+            then trial forward (no grad) to see
+            if current learning rate is viable (producing v without NaN/Inf/^[0,1]).
+            - idx (Integer): how many lr values are tried within the current iteration, logging purpose only
+            - shrink (Boolean): whether this trial uses shrunk lr (if False, it uses lr amplified with `self.jump` instead)
+            - Return (Boolean): whether current learning rate can be used in real forward.
+            """
+            print(f"Trying learning rate No.{idx + 1} {self.lrs_trial}...")
+            self.gen.restore_params()
+            self.opt.load_state_dict(copy.deepcopy(self.opt_state0))
+            load_lr(self.opt, self.lrs_trial)
+
+            self.opt.step()
+            print("\033[36mParameters updated:")
+            p = self.gen.params_tensor()
+            print(p, "\033[0m")
+
+            with torch.no_grad():
+                u_tmp, v_tmp = u_t.clone(), v_t.clone()
+                _, v_t_pred, overflow, t_steps_taken = self.gen.simulate_to_steady_trunc_bptt(
+                    u=u_tmp, v=v_tmp,
+                    dt=self.dt,
+                    K=self.unroll_K,
+                    tol=self.tol,
+                    max_steps=self.max_steps,
+                    device=self.device,
+                    return_steps_taken=True
+                )
+                del u_tmp, v_tmp
+                torch.cuda.empty_cache()
+                _, _, ps_t_pred = power_spectrum_2d_windowed(v_t_pred, log=True)
+                loss_check = F.mse_loss(ps_t_pred, ps_t_target)
+
+            ok = not overflow and torch.isfinite(v_t_pred).all().item() and v_t_pred.min() >= 0 \
+                 and v_t_pred.max() <= 1 and \
+                 torch.isfinite(ps_t_pred).all().item() and \
+                 torch.isfinite(loss_check).item()
+            print(f"Trial forward done. Real forward will take {t_steps_taken} (maximum {self.max_steps}) "
+                  f"steps without grad + {self.unroll_K} steps with grad to converge.")
+            print("All finite and in [0,1]?", ok)
+            if ok:
+                return True
+            else:
+                print(f"Done trying No.{idx + 1} {self.lrs_trial}.")
+                scale_lr(self.opt, self.shrink if shrink else self.jump)
+                self.lrs_trial = [g["lr"] for g in self.opt.param_groups]
+                print("After scale, next round lr:", self.lrs_trial, "\n")
+                return False
+
         print("\33[31mStart training...\33[0m")
 
         for it in trange(self.train_steps+1, desc="Training iters", leave=True):
@@ -149,10 +150,10 @@ class Trainer:
                 with torch.no_grad():
                     # These things, a batch of initial state (u, v), sampled batch (same size) of target v and their
                     # power spectrum, are used in both the trial forward(s) and the real forward following.
-                    self.u_t, self.v_t = init_state_batch(self.batch_sim, self.H, self.W, device=self.device)
+                    u_t, v_t = init_state_batch(self.batch_sim, self.H, self.W, device=self.device)
                     target_idx_t = torch.randint(0, self.B_targets, (self.batch_sim,), device=self.device)
-                    self.v_t_target = self.v_targets[target_idx_t]
-                    _, _, self.ps_t_target = power_spectrum_2d_windowed(self.v_t_target, log=True)
+                    v_t_target = self.v_targets[target_idx_t]
+                    _, _, ps_t_target = power_spectrum_2d_windowed(v_t_target, log=True)
 
                 # To make the trial and real forwards use same elements, we first backprop with the previous trial
                 # forward, and make the real forward afterward.
@@ -188,19 +189,19 @@ class Trainer:
                     print("\33[31mlr trials:\33[0m")
                     self.lrs_trial = self.lrs0
                     for i in range(self.max_tries):
-                        if self.step_and_trial(i):
+                        if step_and_trial(i):
                             break
                     else:
                         self.lrs_trial = self.lrs0
                         for i in range(self.max_tries):
-                            if self.step_and_trial(i, shrink=False):
+                            if step_and_trial(i, shrink=False):
                                 break
                         else:
                             raise ValueError("All lrs failed with NaN.")
 
                     print("\33[31mEnd lr trials.\33[0m")
 
-                u, v = self.u_t, self.v_t
+                u, v = u_t, v_t
 
                 # differentiable forward (fixed K steps)
                 u_pred, v_pred, overflow, steps_taken = self.gen.simulate_to_steady_trunc_bptt(
@@ -217,8 +218,8 @@ class Trainer:
 
                 energy, ps_mean, ps_pred = power_spectrum_2d_windowed(v_pred, log=True)   # [B,H,W]
 
-                self.loss = F.mse_loss(ps_pred, self.ps_t_target)
-                # self.loss = (1 - self.alpha) * loss_ps + self.alpha * ((v_pred - self.v_t_target) ** 2).mean()
+                self.loss = F.mse_loss(ps_pred, ps_t_target)
+                # self.loss = (1 - self.alpha) * loss_ps + self.alpha * ((v_pred - v_t_target) ** 2).mean()
                 print("real run steps taken:", steps_taken, f" + {self.unroll_K}")
 
                 if debug_freq(it, print_more=1):
