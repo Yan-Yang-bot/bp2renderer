@@ -45,6 +45,7 @@ class RDGenerator(nn.Module):
         return GSParams(Du=Du, Dv=Dv, F=Fv, k=kv)
 
     @staticmethod
+    @torch.no_grad()
     def _per_sample_converged(u_next, v_next, u, v, tol: float) -> torch.Tensor:
         """
         returns: [B] bool
@@ -72,8 +73,8 @@ class RDGenerator(nn.Module):
         p: GSParams (fields can be Tensor or float)
         """
         B = u.shape[0]
-        converged = torch.zeros(B, device=u.device, dtype=torch.bool)
-        active_idx = torch.arange(B, device=u.device)  # indices of not-yet-converged
+        converged = torch.zeros(B, device=u.device, dtype=torch.bool, requires_grad=False)
+        active_idx = torch.arange(B, device=u.device, requires_grad=False)  # indices of not-yet-converged
 
         steps_taken = 0
         for t in trange(max_steps,
