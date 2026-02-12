@@ -59,6 +59,11 @@ if __name__ == "__main__":
         GSParams(Du=0.1342671811580658, Dv=0.06791425496339798, F=0.042939864099025726, k=0.06534779816865921),
         # True params
         GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065),
+        # One dot
+        GSParams(Du=0.1341, Dv=0.1198, F=0.0477, k=0.0580),
+        # Four dots
+        GSParams(Du=0.1347, Dv=0.0699, F=0.0426, k=0.0656),  # loss=16.299425 (not windowed)
+        GSParams(Du=0.1334, Dv=0.0685, F=0.0430, k=0.0657),  # loss=14.868260 (not windowed)
     ]
     # params = GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065)
     print('parameters generated.')
