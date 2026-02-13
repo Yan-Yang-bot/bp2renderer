@@ -71,7 +71,7 @@ if __name__ == "__main__":
     print('Generating...')
     u, v = init_state_batch(B=4, H=128, W=128, device=device)
     if task == 'generate targets':
-        v_batch = RDGenerator.generate_gray_scott_target_batch(u, v, params=params, device=device, tol=1e-8, max_steps=50000)
+        v_batch = RDGenerator.generate_gray_scott_target_batch(u, v, params=params[3], device=device, tol=1e-8, max_steps=50000)
     elif task == 'test training forward':
         gen = RDGenerator()
         v_batch, overflow = gen.simulate_to_steady_trunc_bptt(u, v, device=device)[1:3]
@@ -123,5 +123,6 @@ if __name__ == "__main__":
     plt.show()
     plt.close(fig)
 
-    print("Range of pixel values:", v_batch.min().item(), v_batch.max().item(), v_batch.median().item(), v_batch.std(dim=(-1,-2)).mean().item())
+    print("Range of pixel values:", v_batch.min().item(), v_batch.max().item(),
+          "Median and average std of pixels:", v_batch.median().item(), v_batch.std(dim=(-1, -2)).mean().item())
 

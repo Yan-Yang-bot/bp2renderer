@@ -86,7 +86,7 @@ Other useful components include:
 - **chaotic spatiotemporal dynamics**  
   *(if verified, not numerical)*
 
-- **fractal-like bifurcation boundaries**
+- **bifurcation boundaries** (removed the misuse of "fractal-like" as it is used to describe phase map [3])
 
 *(The author plans to avoid going into **numerically invalid regions** strictly, so they are not in the above list.)*
 
@@ -105,4 +105,6 @@ DOI: https://doi.org/10.5281/zenodo.17662717
 [2] Y. Yang, *Towards PDE-Structured Generative Modeling: Differentiable Simulators, Flow-Matching, and Pattern Manifolds (Proposal)*.  
 Zenodo, Dec. 11, 2025.  
 DOI: https://doi.org/10.5281/zenodo.17897116
+
+[3] McDonald, S.W. et al., *Fractal basin boundaries*. Physica D, 17(2), 125-153.
 
