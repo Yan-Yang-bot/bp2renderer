@@ -70,6 +70,10 @@ def updatefig(frame_id: int, updates_per_frame: int, im, txt,
               v: Union[torch.Tensor, list[torch.Tensor]],
               p: Union[GSParams, list[GSParams]], dt: float):
     """Takes care of the matplotlib-artist update in the animation"""
+    if frame_id % 10 == 0:
+        print(f"{frame_id/100:.1f}%", end="\r")
+    if frame_id == 10000:
+        print("\n")
     if type(im) is list:
         assert type(u) is list and type(v) is list and type(p) is list
         return _updatefig_multi(frame_id, updates_per_frame, im, txt, u, v, p, dt)
