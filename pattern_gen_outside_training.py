@@ -4,7 +4,7 @@ from rd_generator import RDGenerator
 from tools import GSParams, init_state_batch
 import matplotlib.animation as animation
 from animation import get_initial_artists, updatefig
-from power_spectrum_2d import windowed_ps_2d_loss
+from power_spectrum_2d import windowed_ps_2d_loss, ps_2d_loss
 
 import matplotlib.pyplot as plt
 
@@ -138,13 +138,14 @@ if __name__ == "__main__":
         else:
             values = [i for i, _ in enumerate(params)]
             vname = "Index of parameter sets"
+
         with torch.no_grad():
             for _p in params:
                 # _, v_final, _, _ = RDGenerator(params=_p).simulate_to_steady_trunc_bptt(up, vp, device=device,
                 #                                                                         tol=1e-8, max_steps=50000,
                 #                                                                         disable_progress_bar=False)
                 _, v_final = RDGenerator.simulate_constant_steps(u.clone(), v.clone(), _p, num_steps=40000)
-                loss_values.append(windowed_ps_2d_loss(v_batch, v_final).item())
+                loss_values.append(ps_2d_loss(v_batch, v_final).item()[3])
                                    # + torch.abs(v_batch.mean()-v_final.mean()).item())
 
         plt.plot(values, loss_values, marker='o', linestyle='-', color='b', lw=0.5, ms=3, markeredgewidth=0)

@@ -1,7 +1,7 @@
 import torch
 from typing import Union
 import matplotlib.pyplot as plt
-from power_spectrum_2d import power_spectrum_2d_windowed
+from power_spectrum_2d import ps_2d_loss, windowed_ps_2d_loss
 import random
 
 
@@ -69,9 +69,7 @@ def pairwise_2d_ps(v, idxs):
     mat = torch.zeros(n, n)
     for i in range(n):
         for j in range(i + 1, n):
-            _, _, tgt = power_spectrum_2d_windowed(v[idxs[i]:idxs[i] + 1])
-            _, _, ipt = power_spectrum_2d_windowed(v[idxs[j]:idxs[j] + 1])
-            li = torch.nn.functional.mse_loss(tgt, ipt)
+            li = ps_2d_loss(v[idxs[i]:idxs[i] + 1], v[idxs[j]:idxs[j] + 1])
             mat[i, j] = mat[j, i] = li.item()
     return mat
 
