@@ -1,5 +1,6 @@
 import torch
 from torch import Tensor
+import torch.nn.functional as F
 
 
 def power_spectrum_2d_windowed(x: Tensor,
@@ -40,3 +41,10 @@ def power_spectrum_2d_windowed(x: Tensor,
         ps_log = torch.log(ps + eps)
     return ps.mean(), ps_log.mean().item(), ps_log
 
+
+def windowed_ps_2d_loss(target, pred):
+    _, ps_pred_mean, ps_pred = power_spectrum_2d_windowed(pred)
+    _, ps_target_mean, ps_target = power_spectrum_2d_windowed(target)
+    l = F.mse_loss(ps_pred, ps_target)
+    print("Means of log power spectrum:", ps_pred_mean, ps_target_mean)
+    return l
