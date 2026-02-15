@@ -17,7 +17,7 @@ class RDGenerator(nn.Module):
             init_logDv = math.log(math.exp(py_float64(params.Dv)) - 1)
             raw_F = math.log(py_float64(params.F) / (0.1 - py_float64(params.F)))
             raw_k = math.log(py_float64(params.k) / (0.1 - py_float64(params.k)))
-            print(init_logDu, init_logDv, raw_F, raw_k)
+            # print(init_logDu, init_logDv, raw_F, raw_k)
         else:
             init_logDu = init_logDv = init_logD
             raw_F = raw_k = 0.0
@@ -110,6 +110,28 @@ class RDGenerator(nn.Module):
 
         return u, v, converged, steps_taken
 
+    @staticmethod
+    def simulate_constant_steps(
+        u: torch.Tensor,
+        v: torch.Tensor,
+        p: GSParams,
+        num_steps: int,
+        dt: float = 1.0,
+        disable_progress_bar: bool = False,
+    ):
+        """
+        u,v: [B,1,H,W]
+        p: GSParams (fields can be Tensor or float)
+        """
+        for _ in trange(num_steps,
+                        desc=f"Simulating for {num_steps} steps",
+                        leave=True,
+                        disable=disable_progress_bar):
+
+            u, v, _ = n_steps(u, v, p, dt, n=1)
+
+        return u, v
+
     # -----------------------------
     # 1) Target Generation
     # -----------------------------
@@ -153,6 +175,7 @@ class RDGenerator(nn.Module):
         max_steps: int = 40000,
         device: Union[str, torch.device] = "cuda",
         return_steps_taken: bool = True,
+        disable_progress_bar: bool =True
     ):
         """
         Input u,v，run with no_grad until almost converge (each sample's convergence judged independently)
@@ -171,7 +194,7 @@ class RDGenerator(nn.Module):
         # TODO: Truncated BPTT is temporarily disabled, using full BPTT now.
         #  Enable it (above commented code) when necessary.
         u, v, converged, steps_taken = self._simulate_until_converged(
-            u=u, v=v, p=p, dt=dt, tol=tol, max_steps=max_steps, disable_progress_bar=True
+            u=u, v=v, p=p, dt=dt, tol=tol, max_steps=max_steps, disable_progress_bar=disable_progress_bar
         )
 
         overflow_early = not torch.all(converged)
