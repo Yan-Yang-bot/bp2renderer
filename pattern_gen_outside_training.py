@@ -60,7 +60,7 @@ if __name__ == "__main__":
         GSParams(Du=0.1270, Dv=0.1269, F=0.0500, k=0.0501),
         # At iter 8918 of lr=1.2e-2 - disappears faster
         GSParams(Du=0.1285, Dv=0.0734, F=0.0429, k=0.0682),
-        # iter 97, 381 after switching to lr=1e-3
+        # iter 98, 381 after switching to lr=1e-3
         GSParams(Du=0.1342671811580658, Dv=0.06791425496339798, F=0.042939864099025726, k=0.06534779816865921),
         # True params
         GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065),
