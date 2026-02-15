@@ -4,10 +4,12 @@ from rd_generator import RDGenerator
 from tools import GSParams, init_state_batch
 import matplotlib.animation as animation
 from animation import get_initial_artists, updatefig
+from power_spectrum_2d import windowed_ps_2d_loss
 
 import matplotlib.pyplot as plt
 
 import sys
+import copy
 
 
 def print_usage_and_exit():
@@ -17,6 +19,7 @@ def print_usage_and_exit():
         "2. test training forward (starting from noisy random parameters)\n"
         "3. load existing targets and show the first 4 of them\n"
         "4. show stepping animation\n"
+        "5. plot the polyline of loss values on a slice of the parameter space\n"
         "Type: python generate_targets.py <number of your option> <optional: path to existing targets>"
     )
     sys.exit(1)
@@ -31,7 +34,7 @@ try:
 except ValueError:
     print_usage_and_exit()
 
-if task_id not in (1, 2, 3, 4):
+if task_id not in (1, 2, 3, 4, 5):
     print_usage_and_exit()
 
 if task_id == 3:
@@ -39,7 +42,9 @@ if task_id == 3:
 task = 'test training forward' if task_id == 2 else \
        'generate targets' if task_id == 1 else \
        'show stored targets' if task_id ==3 else \
-       'animation' if task_id == 4 else ''
+       'animation' if task_id == 4 else \
+       'polyline' if task_id == 5 else \
+       ''
 print(f"Current task: {task}")
 
 save_animation = False
@@ -66,12 +71,12 @@ if __name__ == "__main__":
         GSParams(Du=0.1334, Dv=0.0685, F=0.0430, k=0.0657),  # loss=14.868260 (not windowed)
     ]
     # params = GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065)
-    print('parameters generated.')
 
-    print('Generating...')
+    print('Generating initial batch...')
     u, v = init_state_batch(B=4, H=128, W=128, device=device)
     if task == 'generate targets':
-        v_batch = RDGenerator.generate_gray_scott_target_batch(u, v, params=params[3], device=device, tol=1e-8, max_steps=50000)
+        v_batch = RDGenerator.generate_gray_scott_target_batch(u, v, params=params[3], device=device, tol=1e-8,
+                                                               max_steps=50000)
     elif task == 'test training forward':
         gen = RDGenerator()
         v_batch, overflow = gen.simulate_to_steady_trunc_bptt(u, v, device=device)[1:3]
@@ -96,7 +101,7 @@ if __name__ == "__main__":
                                       updatefig,  # function that takes care of the update
                                       fargs=animation_arguments,  # arguments to pass to this function
                                       interval=1,  # update every `interval` milliseconds
-                                      frames=18000,
+                                      frames=10000,
                                       blit=False,  # optimize the drawing update
                                       )
         if save_animation:
@@ -109,6 +114,36 @@ if __name__ == "__main__":
             )
             print("Saved to gray_scott.mp4")
         # show the animation
+        plt.show()
+        exit(0)
+    elif task == 'polyline':
+        if len(sys.argv) < 6:
+            print("Use `python generate_targets.py 5 <name_of_param_to_slice> <start_value> <end_value> <slice_num>.")
+            sys.exit(1)
+        vname, vmin, vmax, steps = sys.argv[2], float(sys.argv[3]), float(sys.argv[4]), int(sys.argv[5])
+        values = [vmin + i * (vmax - vmin) / (steps - 1) for i in range(steps)]
+        p = GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065)
+        up, vp = u.clone(), v.clone()
+        # v_batch = RDGenerator.generate_gray_scott_target_batch(up, vp, params=p, device=device, tol=1e-8,
+        #                                                        max_steps=50000)
+        _, v_batch = RDGenerator.simulate_constant_steps(up, vp, p, num_steps=40000)
+        loss_values = []
+        with torch.no_grad():
+            for value in values:
+                _p = copy.deepcopy(p)
+                setattr(_p, vname, value)
+                up, vp = u.clone(), v.clone()
+                # _, v_final, _, _ = RDGenerator(params=_p).simulate_to_steady_trunc_bptt(up, vp, device=device,
+                #                                                                         tol=1e-8, max_steps=50000,
+                #                                                                         disable_progress_bar=False)
+                _, v_final = RDGenerator.simulate_constant_steps(up, vp, _p, num_steps=40000)
+                loss_values.append(windowed_ps_2d_loss(v_batch, v_final).item())
+                                   # + torch.abs(v_batch.mean()-v_final.mean()).item())
+
+        plt.plot(values, loss_values, marker='o', linestyle='-', color='b', lw=0.5, ms=3, markeredgewidth=0)
+        plt.xlabel(vname)
+        plt.ylabel('Loss')
+        plt.title('Loss Landscape')
         plt.show()
         exit(0)
 
