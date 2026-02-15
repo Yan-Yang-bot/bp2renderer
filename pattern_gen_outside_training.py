@@ -117,27 +117,33 @@ if __name__ == "__main__":
         plt.show()
         exit(0)
     elif task == 'polyline':
-        if len(sys.argv) < 6:
-            print("Use `python pattern_gen_outside_training.py 5 <name_of_param_to_slice> "
-                  "<start_value> <end_value> <slice_num>.")
+        if len(sys.argv) < 6 and sys.argv[2] != "param_in_file":
+            print("Type `python pattern_gen_outside_training.py 5 <name_of_param_to_slice> "
+                  "<start_value> <end_value> <slice_num>` or `python pattern_gen_outside_training.py 5 param_in_file`.")
             sys.exit(1)
-        vname, vmin, vmax, steps = sys.argv[2], float(sys.argv[3]), float(sys.argv[4]), int(sys.argv[5])
-        values = [vmin + i * (vmax - vmin) / (steps - 1) for i in range(steps)]
         p = GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065)
         up, vp = u.clone(), v.clone()
         # v_batch = RDGenerator.generate_gray_scott_target_batch(up, vp, params=p, device=device, tol=1e-8,
         #                                                        max_steps=50000)
         _, v_batch = RDGenerator.simulate_constant_steps(up, vp, p, num_steps=40000)
         loss_values = []
-        with torch.no_grad():
+        if sys.argv[2] != "param_in_file":
+            vname, vmin, vmax, steps = sys.argv[2], float(sys.argv[3]), float(sys.argv[4]), int(sys.argv[5])
+            values = [vmin + i * (vmax - vmin) / (steps - 1) for i in range(steps)]
+            params = []
             for value in values:
                 _p = copy.deepcopy(p)
                 setattr(_p, vname, value)
-                up, vp = u.clone(), v.clone()
+                params.append(_p)
+        else:
+            values = [i for i, _ in enumerate(params)]
+            vname = "Index of parameter sets"
+        with torch.no_grad():
+            for _p in params:
                 # _, v_final, _, _ = RDGenerator(params=_p).simulate_to_steady_trunc_bptt(up, vp, device=device,
                 #                                                                         tol=1e-8, max_steps=50000,
                 #                                                                         disable_progress_bar=False)
-                _, v_final = RDGenerator.simulate_constant_steps(up, vp, _p, num_steps=40000)
+                _, v_final = RDGenerator.simulate_constant_steps(u.clone(), v.clone(), _p, num_steps=40000)
                 loss_values.append(windowed_ps_2d_loss(v_batch, v_final).item())
                                    # + torch.abs(v_batch.mean()-v_final.mean()).item())
 
