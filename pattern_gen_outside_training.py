@@ -20,7 +20,7 @@ def print_usage_and_exit():
         "3. load existing targets and show the first 4 of them\n"
         "4. show stepping animation\n"
         "5. plot the polyline of loss values on a slice of the parameter space\n"
-        "Type: python generate_targets.py <number of your option> <optional: path to existing targets>"
+        "Type: python pattern_gen_outside_training.py <number of your option> <optional: path to existing targets>"
     )
     sys.exit(1)
 
@@ -118,7 +118,8 @@ if __name__ == "__main__":
         exit(0)
     elif task == 'polyline':
         if len(sys.argv) < 6:
-            print("Use `python generate_targets.py 5 <name_of_param_to_slice> <start_value> <end_value> <slice_num>.")
+            print("Use `python pattern_gen_outside_training.py 5 <name_of_param_to_slice> "
+                  "<start_value> <end_value> <slice_num>.")
             sys.exit(1)
         vname, vmin, vmax, steps = sys.argv[2], float(sys.argv[3]), float(sys.argv[4]), int(sys.argv[5])
         values = [vmin + i * (vmax - vmin) / (steps - 1) for i in range(steps)]
