@@ -154,8 +154,12 @@ class RDGenerator(nn.Module):
             u=u, v=v, p=params, dt=dt, tol=tol, max_steps=max_steps
         )
         if not torch.all(converged):
-            raise ValueError(f"Your parameters {params} led to NaN/Inf "
-                             f"or physically non-meaningful values (outside [0,1]).")
+            answer = input(f"Your parameters {params} led to NaN/Inf "
+                           f"or physically non-meaningful values (outside [0,1])."
+                           "Ignore or abort? (I/A):")
+            if answer == 'A':
+                raise ValueError("Aborted by user due to invalid or non-meaningful value(s).")
+
         print(f"Generation finished - maximum {nstep} steps.")
 
         if return_uv:
