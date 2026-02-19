@@ -2,6 +2,7 @@
 .idea
 archived_target_sets
 bp2renderer
+private_data_for_docs
 *.pt
 *.txt
 
