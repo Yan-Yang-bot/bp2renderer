@@ -1,4 +1,4 @@
-# Example usage
+import numpy as np
 import torch
 from rd_generator import RDGenerator
 from tools import GSParams, init_state_batch
@@ -55,21 +55,7 @@ if __name__ == "__main__":
         device = torch.device("cuda")
     else:
         device = torch.device("cpu")
-    params = [
-        # Initial params
-        GSParams(Du=0.1270, Dv=0.1269, F=0.0500, k=0.0501),
-        # At iter 8918 of lr=1.2e-2 - disappears faster
-        GSParams(Du=0.1285, Dv=0.0734, F=0.0429, k=0.0682),
-        # iter 98, 381 after switching to lr=1e-3
-        GSParams(Du=0.1342671811580658, Dv=0.06791425496339798, F=0.042939864099025726, k=0.06534779816865921),
-        # True params
-        GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065),
-        # One dot
-        GSParams(Du=0.1341, Dv=0.1198, F=0.0477, k=0.0580),
-        # Four dots
-        GSParams(Du=0.1347, Dv=0.0699, F=0.0426, k=0.0656),  # loss=16.299425 (not windowed)
-        GSParams(Du=0.1334, Dv=0.0685, F=0.0430, k=0.0657),  # loss=14.868260 (not windowed)
-    ]
+    params = [GSParams(Du=0.16, Dv=0.08, F=0.03, k=0.053), GSParams(Du=0.16, Dv=0.08, F=0.03, k=0.0555), GSParams(Du=0.16, Dv=0.08, F=0.03, k=0.058), GSParams(Du=0.16, Dv=0.08, F=0.03, k=0.0605), GSParams(Du=0.16, Dv=0.08, F=0.03, k=0.063), GSParams(Du=0.16, Dv=0.08, F=0.03, k=0.0655), GSParams(Du=0.16, Dv=0.08, F=0.03, k=0.068), GSParams(Du=0.16, Dv=0.08, F=0.03666666666666667, k=0.053), GSParams(Du=0.16, Dv=0.08, F=0.03666666666666667, k=0.0555), GSParams(Du=0.16, Dv=0.08, F=0.03666666666666667, k=0.058), GSParams(Du=0.16, Dv=0.08, F=0.03666666666666667, k=0.0605), GSParams(Du=0.16, Dv=0.08, F=0.03666666666666667, k=0.063), GSParams(Du=0.16, Dv=0.08, F=0.03666666666666667, k=0.0655), GSParams(Du=0.16, Dv=0.08, F=0.03666666666666667, k=0.068), GSParams(Du=0.16, Dv=0.08, F=0.043333333333333335, k=0.053), GSParams(Du=0.16, Dv=0.08, F=0.043333333333333335, k=0.0555), GSParams(Du=0.16, Dv=0.08, F=0.043333333333333335, k=0.058), GSParams(Du=0.16, Dv=0.08, F=0.043333333333333335, k=0.0605), GSParams(Du=0.16, Dv=0.08, F=0.043333333333333335, k=0.063), GSParams(Du=0.16, Dv=0.08, F=0.043333333333333335, k=0.0655), GSParams(Du=0.16, Dv=0.08, F=0.043333333333333335, k=0.068), GSParams(Du=0.16, Dv=0.08, F=0.05, k=0.053), GSParams(Du=0.16, Dv=0.08, F=0.05, k=0.0555), GSParams(Du=0.16, Dv=0.08, F=0.05, k=0.058), GSParams(Du=0.16, Dv=0.08, F=0.05, k=0.0605), GSParams(Du=0.16, Dv=0.08, F=0.05, k=0.063), GSParams(Du=0.16, Dv=0.08, F=0.05, k=0.0655), GSParams(Du=0.16, Dv=0.08, F=0.05, k=0.068), GSParams(Du=0.16, Dv=0.08, F=0.05666666666666667, k=0.053), GSParams(Du=0.16, Dv=0.08, F=0.05666666666666667, k=0.0555), GSParams(Du=0.16, Dv=0.08, F=0.05666666666666667, k=0.058), GSParams(Du=0.16, Dv=0.08, F=0.05666666666666667, k=0.0605), GSParams(Du=0.16, Dv=0.08, F=0.05666666666666667, k=0.063), GSParams(Du=0.16, Dv=0.08, F=0.05666666666666667, k=0.0655), GSParams(Du=0.16, Dv=0.08, F=0.05666666666666667, k=0.068), GSParams(Du=0.16, Dv=0.08, F=0.06333333333333334, k=0.053), GSParams(Du=0.16, Dv=0.08, F=0.06333333333333334, k=0.0555), GSParams(Du=0.16, Dv=0.08, F=0.06333333333333334, k=0.058), GSParams(Du=0.16, Dv=0.08, F=0.06333333333333334, k=0.0605), GSParams(Du=0.16, Dv=0.08, F=0.06333333333333334, k=0.063), GSParams(Du=0.16, Dv=0.08, F=0.06333333333333334, k=0.0655), GSParams(Du=0.16, Dv=0.08, F=0.06333333333333334, k=0.068), GSParams(Du=0.16, Dv=0.08, F=0.07, k=0.053), GSParams(Du=0.16, Dv=0.08, F=0.07, k=0.0555), GSParams(Du=0.16, Dv=0.08, F=0.07, k=0.058), GSParams(Du=0.16, Dv=0.08, F=0.07, k=0.0605), GSParams(Du=0.16, Dv=0.08, F=0.07, k=0.063), GSParams(Du=0.16, Dv=0.08, F=0.07, k=0.0655), GSParams(Du=0.16, Dv=0.08, F=0.07, k=0.068)]
     # params = GSParams(Du=0.16, Dv=0.08, F=0.035, k=0.065)
 
     print('Generating initial batch...')
@@ -93,7 +79,7 @@ if __name__ == "__main__":
         else:
             u_animation, v_animation = u[0].squeeze(0), v[0].squeeze(0)
 
-        fig, im, txt = get_initial_artists(v_animation)
+        fig, im, txt = get_initial_artists(v_animation, per_line=7)
         updates_per_frame = 5
         dt = 1.0
         animation_arguments = (updates_per_frame, im, txt, u_animation, v_animation, params, dt)
@@ -125,34 +111,66 @@ if __name__ == "__main__":
         up, vp = u.clone(), v.clone()
         # v_batch = RDGenerator.generate_gray_scott_target_batch(up, vp, params=p, device=device, tol=1e-8,
         #                                                        max_steps=50000)
-        _, v_batch = RDGenerator.simulate_constant_steps(up, vp, p, num_steps=40000)
+        _, v_batch, _ = RDGenerator.simulate_constant_steps(up, vp, p, num_steps=40000)
         loss_values = []
         if sys.argv[2] != "param_in_file":
-            vname, vmin, vmax, steps = sys.argv[2], float(sys.argv[3]), float(sys.argv[4]), int(sys.argv[5])
-            values = [vmin + i * (vmax - vmin) / (steps - 1) for i in range(steps)]
-            params = []
-            for value in values:
-                _p = copy.deepcopy(p)
-                setattr(_p, vname, value)
-                params.append(_p)
+            if len(sys.argv) > 6:
+                vname, vmin, vmax, steps = sys.argv[2], float(sys.argv[3]), float(sys.argv[4]), int(sys.argv[5])
+                v2name, v2min, v2max, steps2 = sys.argv[6], float(sys.argv[7]), float(sys.argv[8]), int(sys.argv[9])
+                values = [vmin + i * (vmax - vmin) / (steps - 1) for i in range(steps)]
+                values2 = [v2min + i * (v2max - v2min) / (steps2 - 1) for i in range(steps2)]
+                params = []
+                for value in values:
+                    p_inner_list = []
+                    for value2 in values2:
+                        _p = copy.deepcopy(p)
+                        setattr(_p, vname, value)
+                        setattr(_p, v2name, value2)
+                        p_inner_list.append(_p)
+                    params.append(p_inner_list)
+            else:
+                vname, vmin, vmax, steps = sys.argv[2], float(sys.argv[3]), float(sys.argv[4]), int(sys.argv[5])
+                values = [vmin + i * (vmax - vmin) / (steps - 1) for i in range(steps)]
+                params = []
+                for value in values:
+                    _p = copy.deepcopy(p)
+                    setattr(_p, vname, value)
+                    params.append(_p)
         else:
             values = [i for i, _ in enumerate(params)]
             vname = "Index of parameter sets"
 
         with torch.no_grad():
-            for _p in params:
-                # _, v_final, _, _ = RDGenerator(params=_p).simulate_to_steady_trunc_bptt(up, vp, device=device,
-                #                                                                         tol=1e-8, max_steps=50000,
-                #                                                                         disable_progress_bar=False)
-                _, v_final = RDGenerator.simulate_constant_steps(u.clone(), v.clone(), _p, num_steps=40000)
-                loss_values.append(ps_2d_loss(v_batch, v_final).item()[3])
-                                   # + torch.abs(v_batch.mean()-v_final.mean()).item())
+            if type(params[0]) is list:
+                for _p in params:
+                    inner_loss_list = []
+                    for i in range(steps2):
+                        _, v_final, _ = RDGenerator.simulate_constant_steps(u.clone(), v.clone(), _p[i], num_steps=25000)
+                        inner_loss_list.append(ps_2d_loss(v_batch, v_final)[3].item())
+                    loss_values.append(inner_loss_list)
 
-        plt.plot(values, loss_values, marker='o', linestyle='-', color='b', lw=0.5, ms=3, markeredgewidth=0)
-        plt.xlabel(vname)
-        plt.ylabel('Loss')
-        plt.title('Loss Landscape')
-        plt.show()
+                data_array = np.array(loss_values) # 0-F, 1-k
+                plt.imshow(data_array, cmap='viridis', extent=(v2min, v2max, vmin, vmax))  # or 'hot', 'plasma', 'gray'
+                plt.colorbar()
+                plt.xlabel(v2name)
+                plt.ylabel(vname)
+                plt.gca().set_aspect((v2max - v2min) / (vmax - vmin))
+                plt.title(f"Loss Landscape 2D Cross-Section ({v2name}-{vname})")
+                plt.show()
+            else:
+                for _p in params:
+                    # _, v_final, _, _ = RDGenerator(params=_p).simulate_to_steady_trunc_bptt(up, vp, device=device,
+                    #                                                                         tol=1e-8, max_steps=50000,
+                    #                                                                         disable_progress_bar=False)
+                    _, v_final, _ = RDGenerator.simulate_constant_steps(u.clone(), v.clone(), _p, num_steps=40000)
+                    loss_values.append(ps_2d_loss(v_batch, v_final)[3].item())
+                                       # + torch.abs(v_batch.mean()-v_final.mean()).item())
+
+                plt.plot(values, loss_values, marker='o', linestyle='-', color='b', lw=0.5, ms=3, markeredgewidth=0)
+                plt.xlabel(vname)
+                plt.ylabel('Loss')
+                plt.title('Loss Landscape')
+                plt.show()
         exit(0)
 
     fig, axes = plt.subplots(2, 2, figsize=(8, 8))

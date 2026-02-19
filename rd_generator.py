@@ -122,15 +122,18 @@ class RDGenerator(nn.Module):
         """
         u,v: [B,1,H,W]
         p: GSParams (fields can be Tensor or float)
+        return: u,v,overflow
         """
+        overflow = False
         for _ in trange(num_steps,
                         desc=f"Simulating for {num_steps} steps",
                         leave=True,
                         disable=disable_progress_bar):
 
-            u, v, _ = n_steps(u, v, p, dt, n=1)
+            u, v, of = n_steps(u, v, p, dt, n=1)
+            overflow = overflow or of
 
-        return u, v
+        return u, v, overflow
 
     # -----------------------------
     # 1) Target Generation

@@ -13,13 +13,13 @@ np.set_printoptions(threshold=sys.maxsize)
 cmap = LinearSegmentedColormap.from_list("mycmap", ["#604957", "#C1D795", "#C1D795", "#C1D795", "#739F62", "#739F62"])
 
 
-def get_initial_artists(v: Union[torch.Tensor, list]):
+def get_initial_artists(v: Union[torch.Tensor, list], per_line: int = 4):
     """return the matplotlib artists for animation"""
     if type(v) is list:
         l = len(v)
         assert l > 0
-        w, h = 4, (l - 1) // 4 + 1
-        fig, axes = plt.subplots(h, w, figsize=(4*w, 4*h))
+        w, h = per_line, (l - 1) // per_line + 1
+        fig, axes = plt.subplots(h, w, figsize=(3*w, 3*h))
         im_list = []
         for idx, ax in enumerate(axes.flatten()):
             if idx == h * w - 1:
