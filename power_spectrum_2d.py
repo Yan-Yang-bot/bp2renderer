@@ -1,6 +1,8 @@
 import torch
 from torch import Tensor
 import torch.nn.functional as F
+import torchvision.models as models
+import torch.nn as nn
 
 
 def power_spectrum_2d(x: Tensor,
@@ -60,3 +62,40 @@ def ps_2d_loss(target, pred):
     _, _, ps_target = power_spectrum_2d(target, windowed=False)
     l = F.mse_loss(ps_pred, ps_target)
     return energy_pred, ps_pred_mean, ps_pred, l
+
+
+def ps_2d_plus_ave_loss(target, pred, alpha):
+    energy_pred, ps_pred_mean, ps_pred, ps_2d_l = ps_2d_loss(target, pred)
+    ave_t = torch.mean(target, dim=(-2, -1))
+    ave_p = torch.mean(pred, dim=(-2, -1))
+    l = (1 - alpha) * ps_2d_l + alpha * F.mse_loss(ave_p, ave_t)
+    return energy_pred, ps_pred_mean, ps_pred, l
+
+
+class VGGGramLoss(nn.Module):
+    def __init__(self, device):
+        super().__init__()
+        vgg = models.vgg19(pretrained=True).features.to(device).eval()
+        self.layers = nn.Sequential(*list(vgg.children())[:18]).to(device)
+        for p in self.parameters():
+            p.requires_grad_(False)
+
+    @staticmethod
+    def gram_matrix(x):
+        B, C, H, W = x.shape
+        f = x.view(B, C, H * W)
+        G = torch.bmm(f, f.transpose(1, 2))
+        return G / 200
+
+    def forward(self, pred, target):
+        # pred, target: [B, 1, H, W]
+        pred_3ch = pred.repeat(1, 3, 1, 1)
+        target_3ch = target.repeat(1, 3, 1, 1)
+
+        pred_feat = self.layers(pred_3ch)
+        target_feat = self.layers(target_3ch).detach()
+
+        return nn.functional.mse_loss(
+            self.gram_matrix(pred_feat),
+            self.gram_matrix(target_feat)
+        )

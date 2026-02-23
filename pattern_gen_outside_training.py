@@ -117,7 +117,7 @@ if __name__ == "__main__":
             if len(sys.argv) > 6:
                 vname, vmin, vmax, steps = sys.argv[2], float(sys.argv[3]), float(sys.argv[4]), int(sys.argv[5])
                 v2name, v2min, v2max, steps2 = sys.argv[6], float(sys.argv[7]), float(sys.argv[8]), int(sys.argv[9])
-                values = [vmin + i * (vmax - vmin) / (steps - 1) for i in range(steps)]
+                values = [vmin + i * (vmax - vmin) / (steps - 1) for i in range(steps-1, -1, -1)]
                 values2 = [v2min + i * (v2max - v2min) / (steps2 - 1) for i in range(steps2)]
                 params = []
                 for value in values:
